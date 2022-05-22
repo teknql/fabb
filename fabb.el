@@ -15,14 +15,10 @@
 ;;
 ;;  A babashka tasks porcelain inside Emacs.
 ;;
-;;  Fabb's initial focus is running and managing output from babashka tasks in
-;;  Emacs.
+;;  Fabb's initial focus is running babashka tasks in Emacs.
 ;;
 ;;  To support this, we find and parse a bb.edn to get a list of task defs.
-;;  Those are presented in a special *fabb-tasks* buffer, from whence they can
-;;  be invoked.
-;;  Current and previously running tasks can also be found, jumped to, or re-run
-;;  from *fabb-tasks*.
+;;  `fabb-invoke--ivy' can be used to select and run a bb task.
 ;;
 ;;; Code:
 (require 's)
@@ -43,20 +39,11 @@
   (when-let ((project-dir (locate-dominating-file default-directory filename)))
     (s-concat (file-name-as-directory project-dir) filename)))
 
-(comment
- (find-file-in-current-project "bb.edn")
- (find-file-in-current-project "idontexist.edn"))
-
 (defun parse-edn (path)
   "Parse the passed PATH as edn via `parseedn-read'."
   (with-temp-buffer
     (insert-file-contents path)
     (car (parseedn-read))))
-
-(comment
- (let ((content
-        (thread-first "bb.edn" find-file-in-current-project parse-edn)))
-   (gethash :tasks content)))
 
 ;;; parsing task-defs ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -96,9 +83,6 @@ task-defs are property lists with these keys:
                              using (hash-key task-name)
                              collect (raw-task->task-def task-name raw-task path))))
     task-defs))
-
-(comment
- (thread-first "bb.edn" find-file-in-current-project parse-bb-edn-tasks))
 
 (defun fabb-task-defs ()
   "Return a list of task-defs for the current context."
