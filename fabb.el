@@ -44,6 +44,19 @@
 
 ;;; misc helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun disable-line-numbers ()
+  "Disable line numbers in current buffer.
+
+Pulled from (magit-section-mode) definition."
+  (when (bound-and-true-p global-linum-mode)
+    (linum-mode -1))
+  (when (and (fboundp 'nlinum-mode)
+             (bound-and-true-p global-nlinum-mode))
+    (nlinum-mode -1))
+  (when (and (fboundp 'display-line-numbers-mode)
+             (bound-and-true-p global-display-line-numbers-mode))
+    (display-line-numbers-mode -1)))
+
 (defun directory-for-file (path)
   "Return the directory for PATH."
   (when path
@@ -144,7 +157,9 @@ determining the bb.edn."
   (let ((default-directory (plist-get task-def :task-dir))
         (compilation-buffer-name-function
          (lambda (_name-of-mode) (fabb-task--buffer-name task-def))))
-    (compile (fabb-task--command task-def))))
+    (when-let ((buffer (compile (fabb-task--command task-def))))
+      (with-current-buffer buffer
+        (fabb-task-minor-mode)))))
 
 ;;; fabb-dispatch ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -155,40 +170,9 @@ determining the bb.edn."
    [("/" "Select Task with ivy" fabb-invoke-ivy)
     ("l" "List Task buffers" not-impled)]]
   ["Some other Category"
-   [("e" "print something" not-impled)]])
+   [("e" "print something" not-impled)
+    ("q" "Close Fabb window" quit-window)]])
 
-;;; fabb-mode ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; TODO it's likely we want a _minor_ mode to share bindings
-(defvar fabb-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; (suppress-keymap map t)
-    (define-key map "/" #'fabb-invoke-ivy)
-    (define-key map "?" #'fabb-dispatch)
-    map)
-  "Keymap for `fabb-mode'.")
-
-(defun disable-line-numbers ()
-  "Disable line numbers in current buffer.
-
-Pulled from (magit-section-mode) definition."
-  (when (bound-and-true-p global-linum-mode)
-    (linum-mode -1))
-  (when (and (fboundp 'nlinum-mode)
-             (bound-and-true-p global-nlinum-mode))
-    (nlinum-mode -1))
-  (when (and (fboundp 'display-line-numbers-mode)
-             (bound-and-true-p global-display-line-numbers-mode))
-    (display-line-numbers-mode -1)))
-
-(define-derived-mode fabb-mode special-mode "Fabb"
-  :group 'fabb
-  ;; mostly pulled from magit-section.el (magit-section-mode)
-  (setq truncate-lines t)
-  (setq buffer-read-only t)
-  (setq show-trailing-whitespace nil)
-  (setq list-buffers-directory (abbreviate-file-name default-directory))
-  (disable-line-numbers))
 
 ;;; fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -215,12 +199,15 @@ See `magit-get-mode-buffer' for a more mature version of this."
 
 Attempt to re-use fabb-mode derived windows (like Magit does)."
   (let ((window
-         (display-buffer buffer
-                         (if (and (derived-mode-p 'fabb-mode)
-                                  (not (memq (with-current-buffer buffer major-mode)
-                                             '(fabb-status-mode))))
-                             '(display-buffer-same-window)
-                           nil))))
+         (display-buffer
+          buffer
+          ;; TODO extend to include finding fabb-task-mode
+          (if (and (derived-mode-p 'fabb-mode)
+                   (not (memq (with-current-buffer buffer major-mode)
+                              '(fabb-status-mode
+                                ))))
+              '(display-buffer-same-window)
+            nil))))
     (select-window window)))
 
 (defun fabb-status (&optional path)
@@ -242,21 +229,6 @@ It defaults to the current buffer's file."
 ;;;###autoload
 (defalias 'fabb #'fabb-status)
 
-(defvar fabb-status-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map fabb-mode-map)
-    map)
-  "Keymap for `fabb-status-mode'.")
-
-(define-derived-mode fabb-status-mode fabb-mode "Fabb Status"
-  "Mode for interacting with fabb tasks.
-
-\\<fabb-mode-map>\
-
-\\<fabb-status-mode-map>\
-
-\\{fabb-status-mode-map}"
-  :group 'fabb)
 
 ;;; ivy-frontend ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -289,6 +261,61 @@ It defaults to the current buffer's file."
             :caller 'fabb-invoke-ivy
             :history 'fabb-invoke--ivy-history
             :action 'fabb-invoke--ivy-action))
+
+;;; major modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; fabb-major-mode
+
+(defvar fabb-mode-map
+  (let ((map (make-sparse-keymap)))
+    ;; (suppress-keymap map t)
+    (define-key map "/" #'fabb-invoke-ivy)
+    (define-key map "?" #'fabb-dispatch)
+    (define-key map "q" #'quit-window)
+    map)
+  "Keymap for `fabb-mode'.")
+
+(define-derived-mode fabb-mode special-mode "Fabb"
+  :group 'fabb
+  ;; mostly pulled from magit-section.el (magit-section-mode)
+  (setq truncate-lines t)
+  (setq buffer-read-only t)
+  (setq show-trailing-whitespace nil)
+  (setq list-buffers-directory (abbreviate-file-name default-directory))
+  (disable-line-numbers))
+
+;;; fabb-status major mode
+
+(defvar fabb-status-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map fabb-mode-map)
+    map)
+  "Keymap for `fabb-status-mode'.")
+
+(define-derived-mode fabb-status-mode fabb-mode "Fabb Status"
+  "Mode for interacting with fabb tasks.
+
+\\<fabb-mode-map>\
+
+\\<fabb-status-mode-map>\
+
+\\{fabb-status-mode-map}"
+  :group 'fabb)
+
+
+;;; minor modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; fabb-task minor mode
+
+(define-minor-mode fabb-task-minor-mode
+  "Mode for running and managing a single task.
+
+A minor mode that supplies convenient fabb commands."
+  :group 'fabb
+  :keymap '(("/" . fabb-invoke-ivy)
+            ("?" . fabb-dispatch)
+            ("q" . quit-window)))
+
 
 (provide 'fabb)
 ;;; fabb.el ends here
