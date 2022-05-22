@@ -167,6 +167,7 @@ determining the bb.edn."
 ;; TODO require transient
 ;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
 (transient-define-prefix fabb-dispatch ()
+  "A transient dispatcher for fabb."
   ["Invoke Tasks"
    [("i" "Select Task with ivy" fabb-invoke-ivy)
     ("l" "List Task buffers" not-impled)]]
@@ -243,6 +244,39 @@ It defaults to the current buffer's file."
     (fabb-status-refresh buffer)
     buffer))
 
+(defun fabb-task--existing-buffer-for-task (task &optional task-buffer-name)
+  "Return a buffer for the passed TASK, if one exists.
+
+Support passing the name directly as TASK-BUFFER-NAME, for cases where we don't
+have a contextual task."
+  (let ((task-buffer-name (or task-buffer-name (fabb-task--buffer-name task))))
+    (fabb-get-mode-buffer 'compilation-mode task-buffer-name)))
+
+(defun fabb-task-select-dwim (task)
+  "Attempt to run the TASK, or find it's buffer."
+  ;; TODO get smart in here
+  (let ((task-buffer (fabb-task--existing-buffer-for-task task)))
+    (if task-buffer
+        (fabb-display-buffer task-buffer)
+      (fabb-invoke-task task))))
+
+;;;###autoload
+(defun fabb-status-task-select ()
+  "Select the task or buffer at point."
+  (interactive)
+  (let* ((line (thing-at-point 'line))
+         ;; pulling the task through via text-properties
+         ;; TODO this text-property metadata thing is gross
+         (props (text-properties-at 0 line)))
+    (cond
+     ((plist-get props :is-task-line)
+      (fabb-task-select-dwim (plist-get props :task)))
+     ((plist-get props :is-task-buffer-line)
+      (let* ((task (plist-get props :task))
+             (buffer
+              (fabb-task--existing-buffer-for-task task)))
+        (fabb-display-buffer buffer))))))
+
 ;;; populating fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun fabb-status--header-lines ()
@@ -253,20 +287,24 @@ It defaults to the current buffer's file."
     (list (format "%d Tasks" task-count)
           "\n")))
 
-(defun fabb-status--task-line (task)
+(defun fabb-status--task-lines (task)
   "Return a nice representation of the TASK for listing on the status buffer."
-  (let ((doc (plist-get task :task-doc)))
-    (if doc
-        (format "bb %s: %s" (plist-get task :task-name) doc)
-      (format "bb %s" (plist-get task :task-name)))))
-
-(comment
- (thread-last (fabb-task-defs)
-              (mapcar
-               (lambda (task)
-                 (format "- %s\n" (plist-get task :task-name))))
-              concat))
-
+  (let* ((doc (plist-get task :task-doc))
+         (task-buffer (fabb-task--existing-buffer-for-task task))
+         (task-line (if doc
+                        (format "\tbb %s: %s" (plist-get task :task-name) doc)
+                      (format "\tbb %s" (plist-get task :task-name))))
+         (buffer-line
+          (when task-buffer
+            (format "\t\t%s" (buffer-name task-buffer)))))
+    ;; TODO this text-property metadata thing is gross
+    ;; set the task as a text property that we'll grab in fabb-status-task-select
+    (set-text-properties 0 1 (plist-put (list :task task) :is-task-line t) task-line)
+    (when buffer-line
+      (set-text-properties 0 1 (plist-put (list :task task) :is-task-buffer-line t) buffer-line))
+    (if buffer-line
+        (list task-line buffer-line)
+      (list task-line))))
 
 ;;;###autoload
 (defun fabb-status-refresh (&optional buffer path)
@@ -284,16 +322,15 @@ PATH, then check if the current buffer is a *fabb-status* one."
       (setq buffer-read-only nil)
       (erase-buffer)
       (thread-last (fabb-status--header-lines)
-                   (mapc (lambda (line) (insert line)))
-                   ;; (mapc insert) <- weird this doesn't work here
-                   )
+                   (mapc (lambda (line) (insert line))))
       (insert ?\n)
       (thread-last (plist-get fabb-status--context :tasks)
                    (mapc
                     (lambda (task)
-                      (insert ?\t)
-                      (insert (fabb-status--task-line task))
-                      (insert ?\n))))
+                      (mapc (lambda (l)
+                              (insert l)
+                              (insert ?\n))
+                            (fabb-status--task-lines task)))))
       (setq buffer-read-only t))))
 
 ;;; ivy-frontend ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -353,6 +390,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
 (defvar fabb-status-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map fabb-mode-map)
+    (define-key map "RET" #'fabb-status-task-select)
     map)
   "Keymap for `fabb-status-mode'.")
 
