@@ -18,7 +18,7 @@
 ;;  Fabb's initial focus is running babashka tasks in Emacs.
 ;;
 ;;  To support this, we find and parse a bb.edn to get a list of task defs.
-;;  `fabb-invoke--ivy' can be used to select and run a bb task.
+;;  `fabb-invoke-ivy' can be used to select and run a bb task.
 ;;
 ;;; Code:
 (require 's)
@@ -141,6 +141,7 @@ determining the bb.edn."
 
 (defun fabb-invoke-task (task-def)
   "Invoke the passed TASK-DEF via 'bb <task-name>'."
+  ;; TODO fix firing from wrong directory (overwrite default-directory ?)
   (let ((compilation-buffer-name-function
          (lambda (_name-of-mode) (fabb-task--buffer-name task-def))))
     (compile (fabb-task--command task-def))))
@@ -151,7 +152,7 @@ determining the bb.edn."
 ;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
 (transient-define-prefix fabb-dispatch ()
   ["Invoke Tasks"
-   [("/" "Select Task with ivy" fabb-invoke--ivy)
+   [("/" "Select Task with ivy" fabb-invoke-ivy)
     ("l" "List Task buffers" not-impled)]]
   ["Some other Category"
    [("e" "print something" not-impled)]])
@@ -162,7 +163,7 @@ determining the bb.edn."
 (defvar fabb-mode-map
   (let ((map (make-sparse-keymap)))
     ;; (suppress-keymap map t)
-    (define-key map "/" #'fabb-invoke--ivy)
+    (define-key map "/" #'fabb-invoke-ivy)
     (define-key map "?" #'fabb-dispatch)
     map)
   "Keymap for `fabb-mode'.")
@@ -260,7 +261,7 @@ It defaults to the current buffer's file."
 ;;; ivy-frontend ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar fabb-invoke--ivy-history nil
-  "History for `fabb-invoke--ivy'.")
+  "History for `fabb-invoke-ivy'.")
 
 (defun fabb-invoke--ivy-targets ()
   "Parse task-defs and map them into ivy targets."
@@ -277,14 +278,15 @@ It defaults to the current buffer's file."
   (when-let ((selected-task-def (cdr selection)))
     (fabb-invoke-task selected-task-def)))
 
-(defun fabb-invoke--ivy ()
+;;;###autoload (autoload 'fabb-invoke-ivy "fabb" nil t)
+(defun fabb-invoke-ivy ()
   "Select and invoke a bb-task via ivy."
   (interactive)
   ;; TODO handle conditionally requiring/configuring ivy?
   (ivy-read "Invoke bb task:"
             (fabb-invoke--ivy-targets)
             :require-match t
-            :caller 'fabb-invoke--ivy
+            :caller 'fabb-invoke-ivy
             :history 'fabb-invoke--ivy-history
             :action 'fabb-invoke--ivy-action))
 

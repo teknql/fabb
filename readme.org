@@ -1,3 +1,37 @@
 #+title: Fabb
 
 A babashka-tasks porcelain inside emacs.
+
+*** Development
+Doom looks for local packages in two dirs, including ~/.doom.d/{local-repo}.
+
+A symlink to there, plus the following in package.el addition, then a doom sync
+worked for me.
+
+#+begin_src sh
+ln -s ~/teknql/fabb ~/.doom.d/fabb
+#+end_src
+
+#+begin_src emacs-lisp
+;; doom packages.el
+(package! fabb :recipe (:local-repo "fabb" :build (:not compile)))
+#+end_src
+
+Then you can configure fab like:
+
+#+begin_src emacs-lisp
+;; doom config.el
+(map!
+ (:leader :desc "Fabb Status" :nv "f" #'fabb-status))
+
+(use-package! fabb
+  :config
+  (map!
+   (:map fabb-mode-map
+    :n "/" #'fabb-invoke-ivy
+    :n "?" #'fabb-dispatch)))
+#+end_src
+
+Configuring from the doom config fixes some common bindings issues, given that
+many of the bindings get overwritten by doom/evil/etc, and it doesn't seem worth
+adding hacks into fabb to work around that.
