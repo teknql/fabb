@@ -107,9 +107,22 @@ task-defs are property lists with these keys:
 
 ;;; invoking tasks ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun fabb-invoke--buffer-name (task-def)
+  "Build the buffer name for TASK-DEF."
+  (format "*fabb-%s [%s]*"
+          (plist-get task-def :task-name)
+          (plist-get task-def :task-dir-name)))
+
+(defun fabb-invoke--command (task-def)
+  "Build the command to invoke for TASK-DEF."
+  ;; TODO consider more bb options here (via transient)
+  (format "bb %s" (plist-get task-def :task-name)))
+
 (defun fabb-invoke-task (task-def)
   "Invoke the passed TASK-DEF via 'bb <task-name>'."
-  (print task-def))
+  (let ((compilation-buffer-name-function
+         (lambda (_name-of-mode) (fabb-invoke--buffer-name task-def))))
+    (compile (fabb-invoke--command task-def))))
 
 ;;; ivy-frontend ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -122,6 +135,8 @@ task-defs are property lists with these keys:
     (fabb-task-defs)
     (mapcar (lambda (task-def)
               ;; assumes task-names are unique (which they are, per-project)
+              ;; TODO include :doc in ivy string
+              ;; TODO include last-run-at/running-status if known
               (cons (plist-get task-def :task-name) task-def)))))
 
 (defun fabb-invoke--ivy-action (selection)
