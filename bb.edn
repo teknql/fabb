@@ -1,0 +1,4 @@
+{:tasks
+ {hello   (shell "echo 'hello world'")
+  goodbye {:doc  "A documented task"
+           :task (shell "echo 'goodbye world'")}}}
