@@ -123,6 +123,7 @@ task-defs are property lists with these keys:
   "Parse and return task-defs for tasks in the bb.edn at PATH."
   (let* ((bb-edn-content (parse-edn path))
          (raw-tasks (gethash :tasks bb-edn-content)))
+    ;; TODO skip `:' prefixed task-names :requires, :enter, :init
     (cl-loop for raw-task being each hash-value of raw-tasks
              using (hash-key task-name)
              collect (raw-task->task-def task-name raw-task path))))
@@ -167,7 +168,7 @@ determining the bb.edn."
 ;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
 (transient-define-prefix fabb-dispatch ()
   ["Invoke Tasks"
-   [("/" "Select Task with ivy" fabb-invoke-ivy)
+   [("i" "Select Task with ivy" fabb-invoke-ivy)
     ("l" "List Task buffers" not-impled)]]
   ["Some other Category"
    [("e" "print something" not-impled)
@@ -210,6 +211,19 @@ Attempt to re-use fabb-mode derived windows (like Magit does)."
             nil))))
     (select-window window)))
 
+(defvar-local fabb-status--context (list)
+  "A context for the fabb-status buffer.")
+
+(defun fabb-status--build-context ()
+  "Return a property-list of context for the current buffer."
+  (let* ((tasks (fabb-task-defs))
+         (first-task (car tasks)))
+    (list :tasks tasks
+          :task-bb-edn (plist-get first-task :task-bb-edn)
+          :task-dir (plist-get first-task :task-dir)
+          :task-dir-name (plist-get first-task :task-dir-name))))
+
+;;;###autoload
 (defun fabb-status (&optional path)
   "Show the status of fabb tasks.
 
@@ -217,18 +231,70 @@ PATH can be any file from which the bb.edn should be found.
 It defaults to the current buffer's file."
   (interactive)
   (let* ((status-buffer-name (fabb-status--buffer-name path))
-         (existing-buffer
-          (fabb-get-mode-buffer 'fabb-status-mode status-buffer-name))
+         (existing-buffer (fabb-get-mode-buffer 'fabb-status-mode status-buffer-name))
          (buffer (if existing-buffer existing-buffer
                    (generate-new-buffer status-buffer-name))))
-    (with-current-buffer buffer
-      (fabb-status-mode))
+    (unless existing-buffer
+      (with-current-buffer buffer
+        (fabb-status-mode)
+        (setq-local fabb-status--context
+                    (fabb-status--build-context))))
     (fabb-display-buffer buffer)
+    (fabb-status-refresh buffer)
     buffer))
 
-;;;###autoload
-(defalias 'fabb #'fabb-status)
+;;; populating fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun fabb-status--header-lines ()
+  "Return a list of lines to insert as the status buffer header."
+  (let* ((ctx fabb-status--context)
+         (tasks (plist-get ctx :tasks))
+         (task-count (length tasks)))
+    (list (format "%d Tasks" task-count)
+          "\n")))
+
+(defun fabb-status--task-line (task)
+  "Return a nice representation of the TASK for listing on the status buffer."
+  (let ((doc (plist-get task :task-doc)))
+    (if doc
+        (format "bb %s: %s" (plist-get task :task-name) doc)
+      (format "bb %s" (plist-get task :task-name)))))
+
+(comment
+ (thread-last (fabb-task-defs)
+              (mapcar
+               (lambda (task)
+                 (format "- %s\n" (plist-get task :task-name))))
+              concat))
+
+
+;;;###autoload
+(defun fabb-status-refresh (&optional buffer path)
+  "Redraw the fabb-status buffer.
+
+Attempts to find a *fabb-status* buffer to refresh, preferring BUFFER, then
+PATH, then check if the current buffer is a *fabb-status* one."
+  (when-let ((buffer
+              (or buffer
+                  (fabb-get-mode-buffer 'fabb-status-mode
+                                        (fabb-status--buffer-name path))
+                  (when (s-starts-with? "*fabb-status*" (buffer-name (current-buffer)))
+                    (current-buffer)))))
+    (with-current-buffer buffer
+      (setq buffer-read-only nil)
+      (erase-buffer)
+      (thread-last (fabb-status--header-lines)
+                   (mapc (lambda (line) (insert line)))
+                   ;; (mapc insert) <- weird this doesn't work here
+                   )
+      (insert ?\n)
+      (thread-last (plist-get fabb-status--context :tasks)
+                   (mapc
+                    (lambda (task)
+                      (insert ?\t)
+                      (insert (fabb-status--task-line task))
+                      (insert ?\n))))
+      (setq buffer-read-only t))))
 
 ;;; ivy-frontend ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -241,7 +307,7 @@ It defaults to the current buffer's file."
     (fabb-task-defs)
     (mapcar (lambda (task-def)
               ;; assumes task-names are unique (which they are, per-project)
-              ;; TODO include :doc in ivy string
+              ;; TODO include :task-doc in ivy string
               ;; TODO include last-run-at/running-status if known
               (cons (plist-get task-def :task-name) task-def)))))
 
@@ -268,8 +334,7 @@ It defaults to the current buffer's file."
 
 (defvar fabb-mode-map
   (let ((map (make-sparse-keymap)))
-    ;; (suppress-keymap map t)
-    (define-key map "/" #'fabb-invoke-ivy)
+    (define-key map "i" #'fabb-invoke-ivy)
     (define-key map "?" #'fabb-dispatch)
     (define-key map "q" #'quit-window)
     map)
@@ -279,7 +344,6 @@ It defaults to the current buffer's file."
   :group 'fabb
   ;; mostly pulled from magit-section.el (magit-section-mode)
   (setq truncate-lines t)
-  (setq buffer-read-only t)
   (setq show-trailing-whitespace nil)
   (setq list-buffers-directory (abbreviate-file-name default-directory))
   (disable-line-numbers))
@@ -312,9 +376,14 @@ It defaults to the current buffer's file."
 
 A minor mode that supplies convenient fabb commands."
   :group 'fabb
-  :keymap '(("/" . fabb-invoke-ivy)
+  :keymap '(("i" . fabb-invoke-ivy)
             ("?" . fabb-dispatch)
-            ("q" . quit-window)))
+            ("q" . quit-window)
+            ;; TODO support re-run
+            ("r" . recompile)
+            ;; TODO support jump-to-task definition (in bb.edn file)
+            ;; ("d" . recompile)
+            ))
 
 
 (provide 'fabb)
