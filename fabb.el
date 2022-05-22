@@ -141,8 +141,8 @@ determining the bb.edn."
 
 (defun fabb-invoke-task (task-def)
   "Invoke the passed TASK-DEF via 'bb <task-name>'."
-  ;; TODO fix firing from wrong directory (overwrite default-directory ?)
-  (let ((compilation-buffer-name-function
+  (let ((default-directory (plist-get task-def :task-dir))
+        (compilation-buffer-name-function
          (lambda (_name-of-mode) (fabb-task--buffer-name task-def))))
     (compile (fabb-task--command task-def))))
 
