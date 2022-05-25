@@ -9,6 +9,10 @@ A symlink to there, plus the following in package.el addition, then a doom sync
 worked for me.
 
 #+begin_src sh
+# linux
+ln -s ~/.doom.d/fabb ~/teknql/fabb
+
+# osx
 ln -s ~/teknql/fabb ~/.doom.d/fabb
 #+end_src
 

@@ -153,14 +153,49 @@ determining the bb.edn."
   ;; TODO consider more bb options here (via transient)
   (format "bb %s" (plist-get task-def :task-name)))
 
+(defvar-local fabb--context-task-def nil
+  "A local var for fabb-invoke buffers, containing the relevant task-def.")
+
 (defun fabb-invoke-task (task-def)
   "Invoke the passed TASK-DEF via 'bb <task-name>'."
   (let ((default-directory (plist-get task-def :task-dir))
         (compilation-buffer-name-function
-         (lambda (_name-of-mode) (fabb-task--buffer-name task-def))))
+         (lambda (_name-of-mode) (fabb-task--buffer-name task-def)))
+        (display-buffer-alist '((display-buffer-same-window . t))))
     (when-let ((buffer (compile (fabb-task--command task-def))))
       (with-current-buffer buffer
-        (fabb-task-minor-mode)))))
+        (fabb-task-minor-mode)
+        (setq-local fabb--context-task-def task-def))
+      ;; (fabb-display-buffer buffer)
+      )))
+
+;;;###autoload
+(defun fabb-invoke-context-task ()
+  "Invoke the in-context task."
+  (interactive)
+  (print "invoking")
+  (print fabb--context-task-def)
+  (when fabb--context-task-def
+    (fabb-invoke-task fabb--context-task-def)))
+
+;;;###autoload
+(defun fabb-edit-and-invoke-context-task ()
+  "Invoke the in-context task."
+  (interactive)
+  (print "edit and invoking")
+  (print fabb--context-task-def)
+  (when fabb--context-task-def
+    (let ((default-directory (plist-get fabb--context-task-def :task-dir))
+          (compilation-buffer-name-function
+           (lambda (_name-of-mode) (fabb-task--buffer-name fabb--context-task-def)))
+          (display-buffer-alist '((display-buffer-same-window . t))))
+      (when-let ((buffer (recompile t)))
+        (with-current-buffer buffer
+          (fabb-task-minor-mode)
+          ;; (setq-local fabb--context-task-def fabb--context-task-def)
+          )
+        ;; (fabb-display-buffer buffer)
+        ))))
 
 ;;; fabb-dispatch ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -170,7 +205,10 @@ determining the bb.edn."
   "A transient dispatcher for fabb."
   ["Invoke Tasks"
    [("i" "Select Task with ivy" fabb-invoke-ivy)
-    ("l" "List Task buffers" not-impled)]]
+    ("l" "List Task buffers" not-impled)
+    ("r" "Re-invoke in-context task" fabb-invoke-context-task)
+    ("R" "Edit and Invoke the in-context task" fabb-edit-and-invoke-context-task)
+    ]]
   ["Some other Category"
    [("e" "print something" not-impled)
     ("q" "Close Fabb window" quit-window)]])
@@ -200,16 +238,21 @@ See `magit-get-mode-buffer' for a more mature version of this."
   "Display the passed BUFFER via `display-buffer'.
 
 Attempt to re-use fabb-mode derived windows (like Magit does)."
-  (let ((window
-         (display-buffer
-          buffer
-          ;; TODO extend to include finding fabb-task-mode
-          (if (and (derived-mode-p 'fabb-mode)
-                   (not (memq (with-current-buffer buffer major-mode)
-                              '(fabb-status-mode
-                                ))))
+  ;; (print "derived-mode-p fabb-mode")
+  ;; (print (derived-mode-p 'fabb-mode))
+  ;; (print "buffer major mode")
+  ;; (print (with-current-buffer buffer major-mode))
+  ;; (print "is-member")
+  ;; (print (not (memq (with-current-buffer buffer major-mode)
+  ;;                   '(fabb-status-mode))))
+
+  (let* ((action
+          (if (memq (with-current-buffer buffer major-mode) '(fabb-status-mode
+                                                              compilation-mode))
               '(display-buffer-same-window)
-            nil))))
+            nil))
+
+         (window (display-buffer buffer action)))
     (select-window window)))
 
 (defvar-local fabb-status--context (list)
@@ -256,6 +299,8 @@ have a contextual task."
   "Attempt to run the TASK, or find it's buffer."
   ;; TODO get smart in here
   (let ((task-buffer (fabb-task--existing-buffer-for-task task)))
+    ;; (print "selected task task-buffer")
+    ;; (print task-buffer)
     (if task-buffer
         (fabb-display-buffer task-buffer)
       (fabb-invoke-task task))))
@@ -272,10 +317,7 @@ have a contextual task."
      ((plist-get props :is-task-line)
       (fabb-task-select-dwim (plist-get props :task)))
      ((plist-get props :is-task-buffer-line)
-      (let* ((task (plist-get props :task))
-             (buffer
-              (fabb-task--existing-buffer-for-task task)))
-        (fabb-display-buffer buffer))))))
+      (fabb-task-select-dwim (plist-get props :task))))))
 
 ;;; populating fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -418,7 +460,8 @@ A minor mode that supplies convenient fabb commands."
             ("?" . fabb-dispatch)
             ("q" . quit-window)
             ;; TODO support re-run
-            ("r" . recompile)
+            ("r" . fabb-invoke-context-task)
+            ("R" . fabb-edit-and-invoke-context-task)
             ;; TODO support jump-to-task definition (in bb.edn file)
             ;; ("d" . recompile)
             ))
