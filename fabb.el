@@ -156,18 +156,50 @@ determining the bb.edn."
 (defvar-local fabb--context-task-def nil
   "A local var for fabb-invoke buffers, containing the relevant task-def.")
 
-(defun fabb-invoke-task (task-def)
-  "Invoke the passed TASK-DEF via 'bb <task-name>'."
+(defun fabb-invoke-task (task-def &optional window-opt)
+  "Invoke the passed TASK-DEF via 'bb <task-name>'.
+
+Accepts an optional WINDOW-OPT that can be 'same-window or 'in-background.
+
+'same-window invokes the task and opens the task buffer in the same window.
+'in-background invokes the task in the background, suppressing any popup.
+
+Invoking a task sets a local var: `fabb--context-task-def'."
   (let ((default-directory (plist-get task-def :task-dir))
+
+        ;; overwrite this func for compilation mode
+        ;; this is what results in the same buffer being re-used.
+        ;; TODO confirm that re-invokations kill exiting processes in this buffer
         (compilation-buffer-name-function
          (lambda (_name-of-mode) (fabb-task--buffer-name task-def)))
-        (display-buffer-alist '((display-buffer-same-window . t))))
+
+        ;; here we set compilation mode's display-buffer behavior
+        (display-buffer-alist
+         (pcase window-opt
+           ('same-window
+            '(((lambda (buf al) t) . (display-buffer-same-window))))
+           ('in-background
+            '(((lambda (buf al) t) . (display-buffer-no-window))))
+           (_ ;; default comp display window behavior
+            '()))))
+
     (when-let ((buffer (compile (fabb-task--command task-def))))
       (with-current-buffer buffer
         (fabb-task-minor-mode)
-        (setq-local fabb--context-task-def task-def))
-      ;; (fabb-display-buffer buffer)
-      )))
+        (setq-local fabb--context-task-def task-def)))
+    (fabb-status-refresh)))
+
+(comment
+ (let ((task
+        (cl-first
+         (fabb-task-defs))))
+   (fabb-invoke-task task 'in-background))
+ (let ((task
+        (cl-first
+         (fabb-task-defs))))
+   (fabb-invoke-task task 'same-window))
+ )
+
 
 ;;;###autoload
 (defun fabb-invoke-context-task ()
@@ -219,6 +251,8 @@ See `magit-get-mode-buffer' for a more mature version of this."
 
 (defun fabb-display-buffer (buffer)
   "Display the passed BUFFER via `display-buffer'.
+
+Should pretty much always open in the same window.
 
 Attempt to re-use fabb-mode derived windows (like Magit does)."
   ;; (print "derived-mode-p fabb-mode")
@@ -278,31 +312,55 @@ have a contextual task."
   (let ((task-buffer-name (or task-buffer-name (fabb-task--buffer-name task))))
     (fabb-get-mode-buffer 'compilation-mode task-buffer-name)))
 
-(defun fabb-task-select-dwim (task)
-  "Attempt to run the TASK, or find it's buffer."
-  ;; TODO get smart in here
-  (let ((task-buffer (fabb-task--existing-buffer-for-task task)))
-    ;; (print "selected task task-buffer")
-    ;; (print task-buffer)
-    (if task-buffer
-        (fabb-display-buffer task-buffer)
-      (fabb-invoke-task task))))
+;;; fabb-status helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;###autoload
-(defun fabb-status-task-select ()
+(defun fabb-status-invoke-task-in-background ()
   "Select the task or buffer at point."
   (interactive)
-  (let* ((line (thing-at-point 'line))
-         ;; pulling the task through via text-properties
-         ;; TODO this text-property metadata thing is gross
-         (props (text-properties-at 0 line)))
-    (cond
-     ((plist-get props :is-task-line)
-      (fabb-task-select-dwim (plist-get props :task)))
-     ((plist-get props :is-task-buffer-line)
-      (fabb-task-select-dwim (plist-get props :task))))))
+  (let* ((props (fabb-status--get-text-props))
+         (task (plist-get props :task)))
+    ;; invoke the task
+    (fabb-invoke-task task 'in-background)))
+
+;;;###autoload
+(defun fabb-status-invoke-task-and-show-buffer ()
+  "Invoke (or re-invoke) the task, and jump to it's buffer."
+  (interactive)
+  (let* ((props (fabb-status--get-text-props))
+         (task (plist-get props :task)))
+    ;; invoke the task in this window
+    (fabb-invoke-task task 'same-window)))
+
+;;;###autoload
+(defun fabb-status-show-task-buffer ()
+  "Invoke (or re-invoke) the task, and jump to it's buffer.
+
+If there is no buffer, a prompt is used to determine if the task should be run."
+  (interactive)
+  (let* ((props (fabb-status--get-text-props))
+         (task (plist-get props :task))
+         (task-buffer (fabb-task--existing-buffer-for-task task)))
+    ;; if task buffer, display it!
+    (if task-buffer
+        (fabb-display-buffer task-buffer)
+      ;; no buffer, prompt to see if we should run
+      (if (yes-or-no-p "Run this task right now?")
+          ;; invoke the task
+          (fabb-invoke-task task 'same-window)
+        (message "No existing buffer.")))))
 
 ;;; populating fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun fabb-status--get-text-props ()
+  "Get the props for the line at point."
+  (let* ((line (thing-at-point 'line)))
+    (text-properties-at 0 line)))
+
+(defun fabb-status--set-text-props (line task)
+  "Set the TASK as a text prop on the LINE."
+  (let ((props (list :task task)))
+    (set-text-properties 0 1 props line)))
 
 (defun fabb-status--header-lines ()
   "Return a list of lines to insert as the status buffer header."
@@ -322,11 +380,10 @@ have a contextual task."
          (buffer-line
           (when task-buffer
             (format "\t\t%s" (buffer-name task-buffer)))))
-    ;; TODO this text-property metadata thing is gross
-    ;; set the task as a text property that we'll grab in fabb-status-task-select
-    (set-text-properties 0 1 (plist-put (list :task task) :is-task-line t) task-line)
+
+    (fabb-status--set-text-props task-line task)
     (when buffer-line
-      (set-text-properties 0 1 (plist-put (list :task task) :is-task-buffer-line t) buffer-line))
+      (fabb-status--set-text-props buffer-line task))
     (if buffer-line
         (list task-line buffer-line)
       (list task-line))))
@@ -411,13 +468,12 @@ PATH, then check if the current buffer is a *fabb-status* one."
 ;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
 (transient-define-prefix fabb-dispatch ()
   "A transient dispatcher for fabb."
-  ["Invoke Tasks"
+  ["Status Tasks"
    [("i" "Select Task with ivy" fabb-invoke-ivy)
-    ("l" "List Task buffers" not-impled)
-    ("r" "Re-invoke in-context task" fabb-invoke-context-task)
-    ("R" "Edit and Invoke the in-context task" fabb-edit-and-invoke-context-task)
-    ]]
-  ["Some other Category"
+    ("r" "Invoke this task" fabb-status-invoke-task-and-show-buffer)
+    ("R" "Invoke this task (in background)" fabb-status-invoke-task-in-background)
+    ("RET" "Show task buffer" fabb-status-show-task-buffer)]]
+  ["Cleanup/Debugging"
    [("x" "Kill all *fabb* buffers" fabb-kill-fabb-buffers)
     ("q" "Close Fabb window" quit-window)]])
 
@@ -449,9 +505,9 @@ PATH, then check if the current buffer is a *fabb-status* one."
 (defvar fabb-status-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map fabb-mode-map)
-    ;; (define-key map "RET" #'fabb-status-task-select)
-    (define-key map "r" #'fabb-status-task-select)
-    (define-key map "x" #'fabb-kill-fabb-buffers)
+    (define-key map "r" #'fabb-status-invoke-task-and-show-buffer)
+    (define-key map "R" #'fabb-status-invoke-task-in-background)
+    (define-key map "RET" #'fabb-status-show-task-buffer)
     map)
   "Keymap for `fabb-status-mode'.")
 
@@ -463,8 +519,9 @@ PATH, then check if the current buffer is a *fabb-status* one."
 \\{fabb-status-mode-map}"
   :group 'fabb
 
-  (evil-define-key 'normal fabb-status-mode-map (kbd "x") 'fabb-kill-fabb-buffers)
-  (evil-define-key 'normal fabb-status-mode-map (kbd "r") 'fabb-status-task-select))
+  (evil-define-key 'normal fabb-status-mode-map "r" #'fabb-status-invoke-task-and-show-buffer)
+  (evil-define-key 'normal fabb-status-mode-map "R" #'fabb-status-invoke-task-in-background)
+  (evil-define-key 'motion fabb-status-mode-map (kbd "RET") #'fabb-status-show-task-buffer))
 
 
 ;;; minor modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
