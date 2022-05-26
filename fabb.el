@@ -438,12 +438,18 @@ PATH, then check if the current buffer is a *fabb-status* one."
               ;; assumes task-names are unique (which they are, per-project)
               ;; TODO include :task-doc in ivy string
               ;; TODO include last-run-at/running-status if known
-              (cons (plist-get task-def :task-name) task-def)))))
+              (cons
+               (if (plist-get task-def :task-doc)
+                   (format "%s: %s"
+                           (plist-get task-def :task-name)
+                           (plist-get task-def :task-doc))
+                 (plist-get task-def :task-name) )
+               task-def)))))
 
 (defun fabb-invoke--ivy-action (selection)
   "Invokes the task-def on SELECTION."
   (when-let ((selected-task-def (cdr selection)))
-    (fabb-invoke-task selected-task-def)))
+    (fabb-invoke-task selected-task-def 'same-window)))
 
 ;;;###autoload (autoload 'fabb-invoke-ivy "fabb" nil t)
 (defun fabb-invoke-ivy ()
