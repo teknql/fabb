@@ -197,23 +197,6 @@ determining the bb.edn."
         ;; (fabb-display-buffer buffer)
         ))))
 
-;;; fabb-dispatch ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; TODO require transient
-;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
-(transient-define-prefix fabb-dispatch ()
-  "A transient dispatcher for fabb."
-  ["Invoke Tasks"
-   [("i" "Select Task with ivy" fabb-invoke-ivy)
-    ("l" "List Task buffers" not-impled)
-    ("r" "Re-invoke in-context task" fabb-invoke-context-task)
-    ("R" "Edit and Invoke the in-context task" fabb-edit-and-invoke-context-task)
-    ]]
-  ["Some other Category"
-   [("e" "print something" not-impled)
-    ("q" "Close Fabb window" quit-window)]])
-
-
 ;;; fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun fabb-get-mode-buffer (mode name)
@@ -407,6 +390,39 @@ PATH, then check if the current buffer is a *fabb-status* one."
             :history 'fabb-invoke--ivy-history
             :action 'fabb-invoke--ivy-action))
 
+;;;; cleanup funcs ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;###autoload
+(defun fabb-kill-fabb-buffers ()
+  "Kill all *fabb* buffers."
+  (interactive)
+  (thread-last
+    (buffer-list)
+    (mapcar
+     (lambda (b)
+       (with-current-buffer b
+         (when
+             (s-starts-with-p "*fabb" (buffer-name))
+           (kill-buffer)))))))
+
+;;; fabb-dispatch ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TODO require transient
+;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
+(transient-define-prefix fabb-dispatch ()
+  "A transient dispatcher for fabb."
+  ["Invoke Tasks"
+   [("i" "Select Task with ivy" fabb-invoke-ivy)
+    ("l" "List Task buffers" not-impled)
+    ("r" "Re-invoke in-context task" fabb-invoke-context-task)
+    ("R" "Edit and Invoke the in-context task" fabb-edit-and-invoke-context-task)
+    ]]
+  ["Some other Category"
+   [("x" "Kill all *fabb* buffers" fabb-kill-fabb-buffers)
+    ("q" "Close Fabb window" quit-window)]])
+
+
+
 ;;; major modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; fabb-major-mode
@@ -416,6 +432,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
     (define-key map "i" #'fabb-invoke-ivy)
     (define-key map "?" #'fabb-dispatch)
     (define-key map "q" #'quit-window)
+    ;; (define-key map "r" #'fabb-status-task-select)
     map)
   "Keymap for `fabb-mode'.")
 
@@ -432,7 +449,9 @@ PATH, then check if the current buffer is a *fabb-status* one."
 (defvar fabb-status-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map fabb-mode-map)
-    (define-key map "RET" #'fabb-status-task-select)
+    ;; (define-key map "RET" #'fabb-status-task-select)
+    (define-key map "r" #'fabb-status-task-select)
+    (define-key map "x" #'fabb-kill-fabb-buffers)
     map)
   "Keymap for `fabb-status-mode'.")
 
@@ -440,11 +459,12 @@ PATH, then check if the current buffer is a *fabb-status* one."
   "Mode for interacting with fabb tasks.
 
 \\<fabb-mode-map>\
-
 \\<fabb-status-mode-map>\
-
 \\{fabb-status-mode-map}"
-  :group 'fabb)
+  :group 'fabb
+
+  (evil-define-key 'normal fabb-status-mode-map (kbd "x") 'fabb-kill-fabb-buffers)
+  (evil-define-key 'normal fabb-status-mode-map (kbd "r") 'fabb-status-task-select))
 
 
 ;;; minor modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
