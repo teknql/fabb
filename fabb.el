@@ -435,9 +435,6 @@ PATH, then check if the current buffer is a *fabb-status* one."
   (thread-last
     (fabb-task-defs)
     (mapcar (lambda (task-def)
-              ;; assumes task-names are unique (which they are, per-project)
-              ;; TODO include :task-doc in ivy string
-              ;; TODO include last-run-at/running-status if known
               (cons
                (if (plist-get task-def :task-doc)
                    (format "%s: %s"
@@ -455,7 +452,6 @@ PATH, then check if the current buffer is a *fabb-status* one."
 (defun fabb-invoke-ivy ()
   "Select and invoke a bb-task via ivy."
   (interactive)
-  ;; TODO handle conditionally requiring/configuring ivy?
   (ivy-read "Invoke bb task:"
             (fabb-invoke--ivy-targets)
             :require-match t
