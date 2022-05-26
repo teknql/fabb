@@ -4,11 +4,13 @@
 ;;
 ;; Author: Russell Matney <russell.matney@gmail.com>
 ;; Maintainer: Russell Matney <russell.matney@gmail.com>
-;; Version: 0.0.1
-;; Keywords: clojure babashka tasks
+
+;; Keywords: clojure babashka tasks tools
 ;; Homepage: https://github.com/teknql/fabb
+
+;; Version: 0.0.1
 ;; Package-Requires: ((emacs "27.1"))
-;;
+
 ;; This file is not part of GNU Emacs.
 ;;
 ;;; Commentary:
@@ -19,22 +21,20 @@
 ;;
 ;;  To support this, we find and parse a bb.edn to get a list of task defs.
 ;;  `fabb-invoke-ivy' can be used to select and run a bb task.
-;;
+
 ;;; Code:
 (require 's)
 (require 'parseedn)
-
+(require 'compile)
+(require 'ivy)
+(require 'evil)
 (require 'cl-lib)
 ;; maybe this is preferred?
 ;; (eval-when-compile (require 'cl-lib))
 
-(defmacro comment (&rest _)
+(defmacro fabb--comment (&rest _)
   "Comment out one or more s-expressions."
   nil)
-
-(defun not-impled ()
-  (interactive)
-  (print "not impled"))
 
 ;;; fabb groups and vars ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -44,7 +44,7 @@
 
 ;;; misc helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun disable-line-numbers ()
+(defun fabb--disable-line-numbers ()
   "Disable line numbers in current buffer.
 
 Pulled from (magit-section-mode) definition."
@@ -57,30 +57,30 @@ Pulled from (magit-section-mode) definition."
              (bound-and-true-p global-display-line-numbers-mode))
     (display-line-numbers-mode -1)))
 
-(defun directory-for-file (path)
+(defun fabb--directory-for-file (path)
   "Return the directory for PATH."
   (when path
     (directory-file-name (file-name-directory path))))
 
-(defun find-file-in-project (filename &optional dir)
+(defun fabb--find-file-in-project (filename &optional dir)
   "Find and return a full path for the passed FILENAME.
 
 DIR can be passed to determine the directory to search from.
 DIR defaults to `default-directory', which depends on the current buffer."
   (let ((directory (cond
                     ((and dir (file-directory-p dir)) dir)
-                    (dir (directory-for-file dir))
+                    (dir (fabb--directory-for-file dir))
                     (t default-directory))))
     (when-let ((project-dir (locate-dominating-file directory filename)))
       (s-concat (file-name-as-directory project-dir) filename))))
 
-(comment
- (find-file-in-project "bb.edn")
- (find-file-in-project "bb.edn" "~/russmatney/clawe")
- (find-file-in-project "bb.edn" "~/russmatney/clawe/src/user.clj")
- (find-file-in-project "nope.edn"))
+(fabb--comment
+ (fabb--find-file-in-project "bb.edn")
+ (fabb--find-file-in-project "bb.edn" "~/russmatney/clawe")
+ (fabb--find-file-in-project "bb.edn" "~/russmatney/clawe/src/user.clj")
+ (fabb--find-file-in-project "nope.edn"))
 
-(defun parse-edn (path)
+(defun fabb--parse-edn (path)
   "Parse the passed PATH as edn via `parseedn-read'."
   (with-temp-buffer
     (insert-file-contents path)
@@ -88,7 +88,7 @@ DIR defaults to `default-directory', which depends on the current buffer."
 
 ;;; parsing task-defs ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun raw-task->task-def (task-name raw-task bb-edn-path)
+(defun fabb--raw-task->task-def (task-name raw-task bb-edn-path)
   "Convert a passed TASK-NAME and RAW-TASK into a fabb-task-def.
 
 BB-EDN-PATH is used to set some properties on the task-def.
@@ -119,24 +119,24 @@ task-defs are property lists with these keys:
                                     (gethash :task raw-task)
                                   raw-task)))))
 
-(defun parse-bb-edn-tasks (path)
+(defun fabb--parse-bb-edn-tasks (path)
   "Parse and return task-defs for tasks in the bb.edn at PATH."
-  (let* ((bb-edn-content (parse-edn path))
+  (let* ((bb-edn-content (fabb--parse-edn path))
          (raw-tasks (gethash :tasks bb-edn-content)))
     ;; TODO skip `:' prefixed task-names :requires, :enter, :init
     (cl-loop for raw-task being each hash-value of raw-tasks
              using (hash-key task-name)
-             collect (raw-task->task-def task-name raw-task path))))
+             collect (fabb--raw-task->task-def task-name raw-task path))))
 
 (defun fabb-task-defs (&optional path)
   "Return a list of task-defs for the current context.
 
 PATH can optionally be used to specify a different starting point for
 determining the bb.edn."
-  (let ((bb-edn-path (find-file-in-project "bb.edn" path)))
-    (parse-bb-edn-tasks bb-edn-path)))
+  (let ((bb-edn-path (fabb--find-file-in-project "bb.edn" path)))
+    (fabb--parse-bb-edn-tasks bb-edn-path)))
 
-(comment
+(fabb--comment
  (fabb-task-defs)
  (fabb-task-defs "~/russmatney/clawe/src/user.clj"))
 
@@ -189,7 +189,7 @@ Invoking a task sets a local var: `fabb--context-task-def'."
         (setq-local fabb--context-task-def task-def)))
     (fabb-status-refresh)))
 
-(comment
+(fabb--comment
  (let ((task
         (cl-first
          (fabb-task-defs))))
@@ -197,8 +197,7 @@ Invoking a task sets a local var: `fabb--context-task-def'."
  (let ((task
         (cl-first
          (fabb-task-defs))))
-   (fabb-invoke-task task 'same-window))
- )
+   (fabb-invoke-task task 'same-window)))
 
 
 ;;;###autoload
@@ -246,7 +245,7 @@ See `magit-get-mode-buffer' for a more mature version of this."
 
 (defun fabb-status--buffer-name (&optional path)
   "Return the fabb-status buffer name for the current context, or PATH."
-  (when-let ((directory (directory-for-file (find-file-in-project "bb.edn" path)) ))
+  (when-let ((directory (fabb--directory-for-file (fabb--find-file-in-project "bb.edn" path)) ))
     (format "*fabb-status* [%s]" directory)))
 
 (defun fabb-display-buffer (buffer)
@@ -464,7 +463,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
 
 ;;; fabb-dispatch ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; TODO require transient
+;; TODO require transient properly?
 ;;;###autoload (autoload 'fabb-dispatch "fabb" nil t)
 (transient-define-prefix fabb-dispatch ()
   "A transient dispatcher for fabb."
@@ -498,7 +497,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
   (setq truncate-lines t)
   (setq show-trailing-whitespace nil)
   (setq list-buffers-directory (abbreviate-file-name default-directory))
-  (disable-line-numbers))
+  (fabb--disable-line-numbers))
 
 ;;; fabb-status major mode
 
@@ -519,6 +518,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
 \\{fabb-status-mode-map}"
   :group 'fabb
 
+  ;; TODO proper 'evil' config for a generic emacs mode?
   (evil-define-key 'normal fabb-status-mode-map "r" #'fabb-status-invoke-task-and-show-buffer)
   (evil-define-key 'normal fabb-status-mode-map "R" #'fabb-status-invoke-task-in-background)
   (evil-define-key 'motion fabb-status-mode-map (kbd "RET") #'fabb-status-show-task-buffer))
