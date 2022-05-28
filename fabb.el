@@ -411,12 +411,15 @@ If there is no buffer, a prompt is used to determine if the task should be run."
           (when task-buffer
             (format "\t\tBuffer: %s" (buffer-name task-buffer))))
          (last-run-at (when-let ((at (plist-get task :last-run-at)))
-                        (format "\t\tLast Run: %s" at))))
+                        (format "\t\tLast Run: %s" at)))
+         (last-cmd (when-let ((cmd (plist-get task :last-cmd)))
+                     (format "\t\tLast Cmd: %s" cmd))))
     (thread-last
       (append
        (list task-line)
        (when buffer-line (list buffer-line))
-       (when last-run-at (list last-run-at)))
+       (when last-run-at (list last-run-at))
+       (when last-cmd (list last-cmd)))
       (mapcar (lambda (line)
                 ;; add text props to all lines for this task
                 (fabb-status--set-text-props line task)
