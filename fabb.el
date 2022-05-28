@@ -156,13 +156,16 @@ determining the bb.edn."
 (defvar-local fabb--context-task-def nil
   "A local var for fabb-invoke buffers, containing the relevant task-def.")
 
-(defun fabb-invoke-task (task-def &optional window-opt)
+(defun fabb-invoke-task (task-def &optional window-opt cmd-overwrite)
   "Invoke the passed TASK-DEF via 'bb <task-name>'.
 
 Accepts an optional WINDOW-OPT that can be 'same-window or 'in-background.
 
 'same-window invokes the task and opens the task buffer in the same window.
 'in-background invokes the task in the background, suppressing any popup.
+
+The command is set via `fabb-task--command',
+but can be overwritten with CMD-OVERWRITE.
 
 Invoking a task sets a local var: `fabb--context-task-def'."
   (let ((default-directory (plist-get task-def :task-dir))
@@ -183,7 +186,8 @@ Invoking a task sets a local var: `fabb--context-task-def'."
            (_ ;; default comp display window behavior
             '()))))
 
-    (when-let ((buffer (compile (fabb-task--command task-def))))
+    (when-let ((buffer (compile (or cmd-overwrite
+                                    (fabb-task--command task-def)))))
       (with-current-buffer buffer
         (fabb-task-mode)
         (setq-local fabb--context-task-def task-def)
@@ -207,8 +211,6 @@ Invoking a task sets a local var: `fabb--context-task-def'."
 (defun fabb-task-reinvoke-task-prompt ()
   "Prompt to reinvoke the task for this buffer."
   (interactive)
-  (print "fabb-task-reinvoke-prompt called")
-  (print fabb--context-task-def)
   (if fabb--context-task-def
       (if (yes-or-no-p "Rerun this task?")
           (fabb-invoke-task fabb--context-task-def 'same-window)
@@ -219,36 +221,18 @@ Invoking a task sets a local var: `fabb--context-task-def'."
 (defun fabb-task-reinvoke-task-no-prompt ()
   "Reinvoke the task for this buffer right away."
   (interactive)
-  (print "fabb-task-reinvoke no-prompt called")
-  (print fabb--context-task-def)
   (if fabb--context-task-def
       (fabb-invoke-task fabb--context-task-def 'same-window)
     (message "no context task :(")))
 
 ;;;###autoload
 (defun fabb-task-edit-and-reinvoke-task ()
-"Reinvoke the task for this buffer right away."
-(interactive)
-(message "To impl"))
-
-;;;###autoload
-(defun fabb-edit-and-invoke-context-task ()
-  "Invoke the in-context task."
+  "Reinvoke the task for this buffer right away."
   (interactive)
-  (print "edit and invoking")
-  (print fabb--context-task-def)
-  (when fabb--context-task-def
-    (let ((default-directory (plist-get fabb--context-task-def :task-dir))
-          (compilation-buffer-name-function
-           (lambda (_name-of-mode) (fabb-task--buffer-name fabb--context-task-def)))
-          (display-buffer-alist '((display-buffer-same-window . t))))
-      (when-let ((buffer (recompile t)))
-        (with-current-buffer buffer
-          (fabb-task-minor-mode)
-          ;; (setq-local fabb--context-task-def fabb--context-task-def)
-          )
-        ;; (fabb-display-buffer buffer)
-        ))))
+  ;; TODO store command history, pull last run, use fancier read-string method
+  (let* ((cmd (fabb-task--command fabb--context-task-def))
+         (cmd (read-string "$ " cmd)))
+    (fabb-invoke-task fabb--context-task-def 'same-window cmd)))
 
 ;;; fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
