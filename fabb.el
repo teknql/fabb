@@ -392,6 +392,38 @@ If there is no buffer, a prompt is used to determine if the task should be run."
   (let ((props (list :task task)))
     (set-text-properties 0 1 props line)))
 
+(defface fabb-status-task-name
+  '((((class color) (background light)) :foreground "DarkOliveGreen4")
+    (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
+  "A font face."
+  :group 'fabb)
+
+(defface fabb-status-task-doc
+  '((((class color) (background light)) :foreground "grey50")
+    (((class color) (background  dark)) :foreground "grey50"))
+  "A font face."
+  :group 'fabb)
+
+(defface fabb-status-detail-key
+  '((((class color) (background light)) :foreground "grey50")
+    (((class color) (background  dark)) :foreground "grey50"))
+  "A font face."
+  :group 'fabb)
+
+(defun fabb--detail-key-face (key)
+  "Apply fabb-status-detail-key to KEY."
+  (propertize key 'font-lock-face 'fabb-status-detail-key))
+;; #c678dd
+(defface fabb-status-buffer-name
+  '((((class color) (background light)) :foreground "D95468")
+    (((class color) (background  dark)) :foreground "D95468"))
+  "A font face."
+  :group 'fabb)
+
+(defun fabb--buffer-name-face (name)
+  "Apply fabb-status-buffer-name to NAME."
+  (propertize name 'font-lock-face 'fabb-status-buffer-name))
+
 (defun fabb-status--header-lines ()
   "Return a list of lines to insert as the status buffer header."
   (let* ((ctx fabb-status--context)
@@ -402,18 +434,26 @@ If there is no buffer, a prompt is used to determine if the task should be run."
 
 (defun fabb-status--task-lines (task)
   "Return a nice representation of the TASK for listing on the status buffer."
-  (let* ((doc (plist-get task :task-doc))
+  (let* ((doc (when-let (doc (plist-get task :task-doc))
+                (propertize (format "%s" doc)
+                            'font-lock-face 'fabb-status-task-doc)))
          (task-buffer (fabb-task--existing-buffer-for-task task))
+         (task-name (propertize (format "%s" (plist-get task :task-name))
+                                'font-lock-face 'fabb-status-task-name))
          (task-line (if doc
-                        (format "\tbb %s: %s" (plist-get task :task-name) doc)
-                      (format "\tbb %s" (plist-get task :task-name))))
+                        (concat "\tbb " task-name ": " doc)
+                      (concat "\tbb " task-name)))
          (buffer-line
           (when task-buffer
-            (format "\t\tBuffer: %s" (buffer-name task-buffer))))
+            (let ((name (buffer-name task-buffer)))
+              ;; clear string props
+              ;; (set-text-properties 0 (seq-length name) nil name)
+              (format "\t\t%s: %s" (fabb--detail-key-face "Buffer")
+                      (fabb--buffer-name-face name)))))
          (last-run-at (when-let ((at (plist-get task :last-run-at)))
-                        (format "\t\tLast Run: %s" at)))
+                        (format "\t\t%s: %s" (fabb--detail-key-face "Last Run") at)))
          (last-cmd (when-let ((cmd (plist-get task :last-cmd)))
-                     (format "\t\tLast Cmd: %s" cmd))))
+                     (format "\t\t%s: %s" (fabb--detail-key-face "Last Cmd") cmd))))
     (thread-last
       (append
        (list task-line)
@@ -426,6 +466,20 @@ If there is no buffer, a prompt is used to determine if the task should be run."
                 line)))))
 
 (fabb--comment
+ (seq-length "sss")
+
+ (let* ((task
+         (cl-second
+          (fabb-task-defs)))
+        (task-name (plist-get task :task-name)))
+   (fabb-status--task-lines task)
+
+   ;; (format "\t%s" (propertize (format "%s" task-name) 'font-lock-face 'fabb-status-task-label))
+   )
+
+ (format "\t%s" (propertize "str" 'font-lock-face 'fabb-status-task-label))
+ (concat "\t" (propertize "str" 'font-lock-face 'fabb-status-task-label))
+
  (append
   (list "4")
   (when t (list "5"))
