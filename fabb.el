@@ -156,6 +156,10 @@ determining the bb.edn."
 (defvar-local fabb--context-task-def nil
   "A local var for fabb-invoke buffers, containing the relevant task-def.")
 
+(defun fabb--now-str ()
+  "Return a string for the current time."
+  (substring (current-time-string) 0 19))
+
 (defun fabb-invoke-task (task-def &optional window-opt cmd-overwrite)
   "Invoke the passed TASK-DEF via 'bb <task-name>'.
 
@@ -176,6 +180,13 @@ Invoking a task sets a local var: `fabb--context-task-def'."
         (compilation-buffer-name-function
          (lambda (_name-of-mode) (fabb-task--buffer-name task-def)))
 
+        ;; (compilation-finish-functions
+        ;;  '((lambda (buffer msg)
+        ;;      (message "compilation finish funcs")
+        ;;      (print buffer)
+        ;;      (print msg)
+        ;;      (plist-put! task-def :finished-at (fabb--now-str)))))
+
         ;; here we set compilation mode's display-buffer behavior
         (display-buffer-alist
          (pcase window-opt
@@ -190,6 +201,7 @@ Invoking a task sets a local var: `fabb--context-task-def'."
                                     (fabb-task--command task-def)))))
       (with-current-buffer buffer
         (fabb-task-mode)
+        (plist-put! task-def :last-run-at (fabb--now-str))
         (setq-local fabb--context-task-def task-def)
         (message (format "%s" fabb--context-task-def))
         (setq buffer-read-only nil)
@@ -263,7 +275,7 @@ Should pretty much always open in the same window.
 Attempt to re-use fabb-mode derived windows (like Magit does)."
   (let* ((action
           (if (memq (with-current-buffer buffer major-mode)
-                    '(fabb-status-mode compilation-mode))
+                    '(fabb-status-mode fabb-task-mode))
               '(display-buffer-same-window)
             nil))
          (window (display-buffer buffer action)))
@@ -307,7 +319,7 @@ It defaults to the current buffer's file."
 Support passing the name directly as TASK-BUFFER-NAME, for cases where we don't
 have a contextual task."
   (let ((task-buffer-name (or task-buffer-name (fabb-task--buffer-name task))))
-    (fabb-get-mode-buffer 'compilation-mode task-buffer-name)))
+    (fabb-get-mode-buffer 'fabb-task-mode task-buffer-name)))
 
 ;;; fabb-status helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -376,14 +388,24 @@ If there is no buffer, a prompt is used to determine if the task should be run."
                       (format "\tbb %s" (plist-get task :task-name))))
          (buffer-line
           (when task-buffer
-            (format "\t\t%s" (buffer-name task-buffer)))))
+            (format "\t\tBuffer: %s" (buffer-name task-buffer))))
+         (last-run-at (when-let ((at (plist-get task :last-run-at)))
+                        (format "\t\tLast Run: %s" at))))
+    (thread-last
+      (append
+       (list task-line)
+       (when buffer-line (list buffer-line))
+       (when last-run-at (list last-run-at)))
+      (mapcar (lambda (line)
+                ;; add text props to all lines for this task
+                (fabb-status--set-text-props line task)
+                line)))))
 
-    (fabb-status--set-text-props task-line task)
-    (when buffer-line
-      (fabb-status--set-text-props buffer-line task))
-    (if buffer-line
-        (list task-line buffer-line)
-      (list task-line))))
+(fabb--comment
+ (append
+  (list "4")
+  (when t (list "5"))
+  (when t (list "6"))))
 
 ;;;###autoload
 (defun fabb-status-refresh (&optional buffer path)
@@ -508,6 +530,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
   (let ((map (make-sparse-keymap))) map)
   "Keymap for `fabb-task-mode'.")
 
+;; TODO look into using define-compilation-mode
 (define-derived-mode fabb-task-mode compilation-mode "Fabb Task"
   "Mode for interacting with fabb tasks."
   :group 'fabb
