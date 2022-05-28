@@ -395,34 +395,34 @@ If there is no buffer, a prompt is used to determine if the task should be run."
 (defface fabb-status-task-name
   '((((class color) (background light)) :foreground "DarkOliveGreen4")
     (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
-  "A font face."
+  "A task name font face."
   :group 'fabb)
 
 (defface fabb-status-task-doc
   '((((class color) (background light)) :foreground "grey50")
     (((class color) (background  dark)) :foreground "grey50"))
-  "A font face."
+  "A doc font face."
   :group 'fabb)
 
 (defface fabb-status-detail-key
   '((((class color) (background light)) :foreground "grey50")
     (((class color) (background  dark)) :foreground "grey50"))
-  "A font face."
+  "A detail key font face."
   :group 'fabb)
 
-(defun fabb--detail-key-face (key)
-  "Apply fabb-status-detail-key to KEY."
-  (propertize key 'font-lock-face 'fabb-status-detail-key))
-;; #c678dd
 (defface fabb-status-buffer-name
-  '((((class color) (background light)) :foreground "D95468")
-    (((class color) (background  dark)) :foreground "D95468"))
-  "A font face."
+  '((((class color) (background light)) :foreground "SkyBlue4")
+    (((class color) (background  dark)) :foreground "LightSkyBlue1"))
+  "A buffer name font face."
   :group 'fabb)
 
-(defun fabb--buffer-name-face (name)
-  "Apply fabb-status-buffer-name to NAME."
-  (propertize name 'font-lock-face 'fabb-status-buffer-name))
+(defun fabb--detail-key-face (k)
+  "Apply fabb-status-detail-key to K."
+  (propertize k 'font-lock-face 'fabb-status-detail-key))
+
+(defun fabb--buffer-name-face (n)
+  "Apply fabb-status-buffer-name to N."
+  (propertize n 'font-lock-face 'fabb-status-buffer-name))
 
 (defun fabb-status--header-lines ()
   "Return a list of lines to insert as the status buffer header."
