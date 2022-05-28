@@ -168,8 +168,10 @@ Accepts an optional WINDOW-OPT that can be 'same-window or 'in-background.
 'same-window invokes the task and opens the task buffer in the same window.
 'in-background invokes the task in the background, suppressing any popup.
 
-The command is set via `fabb-task--command',
-but can be overwritten with CMD-OVERWRITE.
+The command is set initially via `fabb-task--command',
+but if :last-cmd is found on the task, that will be used.
+CMD-OVERWRITE can be passed to overwrite the task (and set
+the next :last-cmd).
 
 Invoking a task sets a local var: `fabb--context-task-def'."
   (let ((default-directory (plist-get task-def :task-dir))
@@ -198,10 +200,13 @@ Invoking a task sets a local var: `fabb--context-task-def'."
             '()))))
 
     (when-let ((buffer (compile (or cmd-overwrite
+                                    (plist-get task-def :last-cmd)
                                     (fabb-task--command task-def)))))
       (with-current-buffer buffer
         (fabb-task-mode)
         (plist-put! task-def :last-run-at (fabb--now-str))
+        (when cmd-overwrite
+          (plist-put! task-def :last-cmd cmd-overwrite))
         (setq-local fabb--context-task-def task-def)
         (message (format "%s" fabb--context-task-def))
         (setq buffer-read-only nil)
@@ -237,14 +242,22 @@ Invoking a task sets a local var: `fabb--context-task-def'."
       (fabb-invoke-task fabb--context-task-def 'same-window)
     (message "no context task :(")))
 
+(defun fabb-edit-and-reinvoke-task (task)
+  "Edit the cmd and invoke the passed TASK."
+  (interactive)
+  ;; TODO store command history, use fancier read-string method
+  (let* ((last-cmd
+          (or
+           (plist-get task :last-cmd)
+           (fabb-task--command task)))
+         (cmd (read-string "$ " last-cmd)))
+    (fabb-invoke-task task 'same-window cmd)))
+
 ;;;###autoload
 (defun fabb-task-edit-and-reinvoke-task ()
-  "Reinvoke the task for this buffer right away."
+  "Edit the task in the current buffer and reinvoke it."
   (interactive)
-  ;; TODO store command history, pull last run, use fancier read-string method
-  (let* ((cmd (fabb-task--command fabb--context-task-def))
-         (cmd (read-string "$ " cmd)))
-    (fabb-invoke-task fabb--context-task-def 'same-window cmd)))
+  (fabb-edit-and-reinvoke-task fabb--context-task-def))
 
 ;;; fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -340,6 +353,14 @@ have a contextual task."
          (task (plist-get props :task)))
     ;; invoke the task in this window
     (fabb-invoke-task task 'same-window)))
+
+;;;###autoload
+(defun fabb-status-edit-and-invoke-task ()
+  "Edit the task command, then invoke it, opening the running task buffer."
+  (interactive)
+  (let* ((props (fabb-status--get-text-props))
+         (task (plist-get props :task)))
+    (fabb-edit-and-reinvoke-task task)))
 
 ;;;###autoload
 (defun fabb-status-show-task-buffer ()
