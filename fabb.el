@@ -185,7 +185,7 @@ Invoking a task sets a local var: `fabb--context-task-def'."
 
     (when-let ((buffer (compile (fabb-task--command task-def))))
       (with-current-buffer buffer
-        (fabb-task-minor-mode t)
+        (fabb-task-mode)
         (setq-local fabb--context-task-def task-def)
         (message (format "%s" fabb--context-task-def))
         (setq buffer-read-only nil)
@@ -207,28 +207,29 @@ Invoking a task sets a local var: `fabb--context-task-def'."
 (defun fabb-task-reinvoke-task-prompt ()
   "Prompt to reinvoke the task for this buffer."
   (interactive)
-  (print "fabb-task-reinvoke called")
-  (unless fabb--context-task-def
-    (message "no context task :(")
-    (if (yes-or-no-p "Rerun this task?")
-        (fabb-invoke-task fabb--context-task-def 'same-window)
-      (message "Hmm, thought better of it, didja?"))))
+  (print "fabb-task-reinvoke-prompt called")
+  (print fabb--context-task-def)
+  (if fabb--context-task-def
+      (if (yes-or-no-p "Rerun this task?")
+          (fabb-invoke-task fabb--context-task-def 'same-window)
+        (message "Hmm, thought better of it, didja?"))
+    (message "no context task :(")))
 
 ;;;###autoload
 (defun fabb-task-reinvoke-task-no-prompt ()
   "Reinvoke the task for this buffer right away."
   (interactive)
-  (print "fabb-task-reinvoke called")
-  (unless fabb--context-task-def
-    (message "no context task :(")
-    (message "Re-invoking task!")
-    (fabb-invoke-task fabb--context-task-def 'same-window)))
+  (print "fabb-task-reinvoke no-prompt called")
+  (print fabb--context-task-def)
+  (if fabb--context-task-def
+      (fabb-invoke-task fabb--context-task-def 'same-window)
+    (message "no context task :(")))
 
 ;;;###autoload
 (defun fabb-task-edit-and-reinvoke-task ()
-  "Reinvoke the task for this buffer right away."
-  (interactive)
-  (message "To impl"))
+"Reinvoke the task for this buffer right away."
+(interactive)
+(message "To impl"))
 
 ;;;###autoload
 (defun fabb-edit-and-invoke-context-task ()
@@ -491,18 +492,12 @@ PATH, then check if the current buffer is a *fabb-status* one."
    [("x" "Kill all *fabb* buffers" fabb-kill-fabb-buffers)
     ("q" "Close Fabb window" quit-window)]])
 
-
-
 ;;; major modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; fabb-major-mode
 
 (defvar fabb-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; (define-key map "i" #'fabb-invoke-ivy)
-    ;; (define-key map "?" #'fabb-dispatch)
-    ;; (define-key map "q" #'quit-window)
-    map)
+  (let ((map (make-sparse-keymap))) map)
   "Keymap for `fabb-mode'.")
 
 (define-derived-mode fabb-mode special-mode "Fabb"
@@ -516,67 +511,26 @@ PATH, then check if the current buffer is a *fabb-status* one."
 ;;; fabb-status major mode
 
 (defvar fabb-status-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; (set-keymap-parent map fabb-mode-map)
-    ;; (define-key map "r" #'fabb-status-invoke-task-and-show-buffer)
-    ;; (define-key map "R" #'fabb-status-invoke-task-in-background)
-    ;; (define-key map (kbd "RET") #'fabb-status-show-task-buffer)
-    map)
+  (let ((map (make-sparse-keymap))) map)
   "Keymap for `fabb-status-mode'.")
 
 (define-derived-mode fabb-status-mode fabb-mode "Fabb Status"
-  "Mode for interacting with fabb tasks.
+  "Mode for interacting with fabb tasks."
+  :group 'fabb)
 
-\\<fabb-mode-map>\
-\\<fabb-status-mode-map>\
-\\{fabb-status-mode-map}"
+;;; fabb-task major mode
+
+(defvar fabb-task-mode-map
+  (let ((map (make-sparse-keymap))) map)
+  "Keymap for `fabb-task-mode'.")
+
+(define-derived-mode fabb-task-mode compilation-mode "Fabb Task"
+  "Mode for interacting with fabb tasks."
   :group 'fabb
-
-  ;; TODO proper 'evil' config for a generic emacs mode?
-  ;; (evil-define-key 'normal fabb-status-mode-map "r" #'fabb-status-invoke-task-and-show-buffer)
-  ;; (evil-define-key 'normal fabb-status-mode-map "R" #'fabb-status-invoke-task-in-background)
-  ;; (evil-define-key 'motion fabb-status-mode-map (kbd "RET") #'fabb-status-show-task-buffer)
-  )
-
-;;; minor modes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;; fabb-task minor mode
-
-;; TODO refactor into a compilation-derived mode?
-(defvar fabb-task-minor-mode-map
-  (let ((map (make-sparse-keymap)))
-    ;; (set-keymap-parent map fabb-mode-map)
-    ;; (define-key map "q" #'quit-window)
-    ;; (define-key map "e" #'fabb-task-edit-and-reinvoke-task)
-    ;; (define-key map "r" #'fabb-task-reinvoke-task-prompt)
-    ;; (define-key map "R" #'fabb-task-reinvoke-task-no-prompt)
-    map)
-  "Keymap for `fabb-task-minor-mode'.")
-
-(define-minor-mode fabb-task-minor-mode
-  "Mode for running and managing a single task.
-
-A minor mode that supplies convenient fabb commands."
-  :group 'fabb
-  :keymap fabb-task-minor-mode-map
-  ;; (define-key compilation-mode-map "r" nil)
-  ;; (define-key compilation-mode-map "R" nil)
-
-  ;; (define-key compilation-mode-map "e" #'fabb-task-edit-and-reinvoke-task)
-  ;; (define-key compilation-mode-map "r" #'fabb-task-reinvoke-task-prompt)
-  ;; (define-key compilation-mode-map "R" #'fabb-task-reinvoke-task-no-prompt)
-
-  ;; (evil-define-key nil fabb-task-minor-mode-map "e" #'fabb-task-edit-and-reinvoke-task)
-  ;; (evil-define-key nil fabb-task-minor-mode-map "r" #'fabb-task-reinvoke-task-prompt)
-  ;; (evil-define-key nil fabb-task-minor-mode-map "R" #'fabb-task-reinvoke-task-no-prompt)
-
-  ;; (evil-define-key 'motion fabb-task-minor-mode-map "e" #'fabb-task-edit-and-reinvoke-task)
-  ;; (evil-define-key 'normal fabb-task-minor-mode-map "r" #'fabb-task-reinvoke-task-prompt)
-  ;; (evil-define-key 'normal fabb-task-minor-mode-map "R" #'fabb-task-reinvoke-task-no-prompt)
-  )
-
-(add-hook 'compilation-mode 'fabb-task-minor-mode)
-
+  (setq truncate-lines nil)
+  (setq show-trailing-whitespace nil)
+  (setq list-buffers-directory (abbreviate-file-name default-directory))
+  (fabb--disable-line-numbers))
 
 (provide 'fabb)
 ;;; fabb.el ends here
