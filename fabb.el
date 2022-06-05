@@ -398,6 +398,24 @@ If there is no buffer, a prompt is used to determine if the task should be run."
   "A task name font face."
   :group 'fabb)
 
+(defface fabb-status-task-name-running
+  '((((class color) (background light)) :foreground "DarkOliveGreen4")
+    (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
+  "A task name font face."
+  :group 'fabb)
+
+(defface fabb-status-task-name-completed
+  '((((class color) (background light)) :foreground "DarkOliveGreen4")
+    (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
+  "A task name font face."
+  :group 'fabb)
+
+(defface fabb-status-task-name-error
+  '((((class color) (background light)) :foreground "red")
+    (((class color) (background  dark)) :foreground "red"))
+  "A task name font face."
+  :group 'fabb)
+
 (defface fabb-status-task-doc
   '((((class color) (background light)) :foreground "grey50")
     (((class color) (background  dark)) :foreground "grey50"))
@@ -432,17 +450,20 @@ If there is no buffer, a prompt is used to determine if the task should be run."
     (list (format "%d Tasks" task-count)
           "\n")))
 
+(defun fabb--colorized-task-name (task &optional command)
+  "Return the TASK name or COMMAND.
+
+Propertizes the color based on task's status."
+  (propertize (format "%s" (or command (plist-get task :task-name)))
+              'font-lock-face 'fabb-status-task-name))
+
 (defun fabb-status--task-lines (task)
   "Return a nice representation of the TASK for listing on the status buffer."
-  (let* ((doc (when-let (doc (plist-get task :task-doc))
-                (propertize (format "%s" doc)
-                            'font-lock-face 'fabb-status-task-doc)))
-         (task-buffer (fabb-task--existing-buffer-for-task task))
-         (task-name (propertize (format "%s" (plist-get task :task-name))
-                                'font-lock-face 'fabb-status-task-name))
-         (task-line (if doc
-                        (concat "\tbb " task-name ": " doc)
-                      (concat "\tbb " task-name)))
+  (let* ((task-buffer (fabb-task--existing-buffer-for-task task))
+         (task-line (concat "\tbb " (fabb--colorized-task-name task)))
+         (doc-line (when-let (doc (plist-get task :task-doc))
+                     (propertize (format "\t\t%s" doc)
+                                 'font-lock-face 'fabb-status-task-doc)))
          (buffer-line
           (when task-buffer
             (let ((name (buffer-name task-buffer)))
@@ -452,11 +473,35 @@ If there is no buffer, a prompt is used to determine if the task should be run."
                       (fabb--buffer-name-face name)))))
          (last-run-at (when-let ((at (plist-get task :last-run-at)))
                         (format "\t\t%s: %s" (fabb--detail-key-face "Last Run") at)))
+         (raw-task-line (format "\t\t%s" task))
+         (debug-task-line
+          (s-concat
+           "\t\t"
+           (s-join " "
+                   (cl-map 'list
+                           (lambda (k-v)
+                             (propertize
+                              (format "%s" k-v) 'font-lock-face
+                              ;; TODO set better colors here
+                              (cond
+                               ((s-starts-with-p ":" (format "%s" k-v))
+                                'fabb-status-task-name-error)
+                               ((symbolp k-v)
+                                'fabb-status-task-doc)
+                               (t 'fabb-status-task-name))))
+                           task))))
          (last-cmd (when-let ((cmd (plist-get task :last-cmd)))
-                     (format "\t\t%s: %s" (fabb--detail-key-face "Last Cmd") cmd))))
+                     (format "\t\t%s"
+                             ;; for now last-cmd includes the `bb'... maybe
+                             ;; we move to a full command mode instead of abstracting
+                             ;; the `bb'?
+                             (fabb--colorized-task-name task cmd)))))
     (thread-last
       (append
        (list task-line)
+       ;; (when raw-task-line (list raw-task-line))
+       (when debug-task-line (list debug-task-line))
+       (when doc-line (list doc-line))
        (when buffer-line (list buffer-line))
        (when last-run-at (list last-run-at))
        (when last-cmd (list last-cmd)))
@@ -587,7 +632,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
 (define-derived-mode fabb-mode special-mode "Fabb"
   :group 'fabb
   ;; mostly pulled from magit-section.el (magit-section-mode)
-  (setq truncate-lines t)
+  (setq truncate-lines nil)
   (setq show-trailing-whitespace nil)
   (setq list-buffers-directory (abbreviate-file-name default-directory))
   (fabb--disable-line-numbers))
@@ -600,7 +645,8 @@ PATH, then check if the current buffer is a *fabb-status* one."
 
 (define-derived-mode fabb-status-mode fabb-mode "Fabb Status"
   "Mode for interacting with fabb tasks."
-  :group 'fabb)
+  :group 'fabb
+  (setq truncate-lines nil))
 
 ;;; fabb-task major mode
 
