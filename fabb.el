@@ -29,6 +29,9 @@
 (require 'ivy)
 (require 'evil)
 (require 'cl-lib)
+
+(require 'fabb-colors)
+
 ;; maybe this is preferred?
 ;; (eval-when-compile (require 'cl-lib))
 
@@ -392,55 +395,13 @@ If there is no buffer, a prompt is used to determine if the task should be run."
   (let ((props (list :task task)))
     (set-text-properties 0 1 props line)))
 
-(defface fabb-status-task-name
-  '((((class color) (background light)) :foreground "DarkOliveGreen4")
-    (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
-  "A task name font face."
-  :group 'fabb)
-
-(defface fabb-status-task-name-running
-  '((((class color) (background light)) :foreground "DarkOliveGreen4")
-    (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
-  "A task name font face."
-  :group 'fabb)
-
-(defface fabb-status-task-name-completed
-  '((((class color) (background light)) :foreground "DarkOliveGreen4")
-    (((class color) (background  dark)) :foreground "DarkSeaGreen2"))
-  "A task name font face."
-  :group 'fabb)
-
-(defface fabb-status-task-name-error
-  '((((class color) (background light)) :foreground "red")
-    (((class color) (background  dark)) :foreground "red"))
-  "A task name font face."
-  :group 'fabb)
-
-(defface fabb-status-task-doc
-  '((((class color) (background light)) :foreground "grey50")
-    (((class color) (background  dark)) :foreground "grey50"))
-  "A doc font face."
-  :group 'fabb)
-
-(defface fabb-status-detail-key
-  '((((class color) (background light)) :foreground "grey50")
-    (((class color) (background  dark)) :foreground "grey50"))
-  "A detail key font face."
-  :group 'fabb)
-
-(defface fabb-status-buffer-name
-  '((((class color) (background light)) :foreground "SkyBlue4")
-    (((class color) (background  dark)) :foreground "LightSkyBlue1"))
-  "A buffer name font face."
-  :group 'fabb)
-
 (defun fabb--detail-key-face (k)
-  "Apply fabb-status-detail-key to K."
-  (propertize k 'font-lock-face 'fabb-status-detail-key))
+  "Apply fabb-colors-detail-key to K."
+  (propertize k 'font-lock-face 'fabb-colors-detail-key))
 
 (defun fabb--buffer-name-face (n)
-  "Apply fabb-status-buffer-name to N."
-  (propertize n 'font-lock-face 'fabb-status-buffer-name))
+  "Apply fabb-colors-buffer-name to N."
+  (propertize n 'font-lock-face 'fabb-colors-buffer-name))
 
 (defun fabb-status--header-lines ()
   "Return a list of lines to insert as the status buffer header."
@@ -455,7 +416,7 @@ If there is no buffer, a prompt is used to determine if the task should be run."
 
 Propertizes the color based on task's status."
   (propertize (format "%s" (or command (plist-get task :task-name)))
-              'font-lock-face 'fabb-status-task-name))
+              'font-lock-face 'fabb-colors-task-name))
 
 (defun fabb-status--task-lines (task)
   "Return a nice representation of the TASK for listing on the status buffer."
@@ -463,7 +424,7 @@ Propertizes the color based on task's status."
          (task-line (concat "\tbb " (fabb--colorized-task-name task)))
          (doc-line (when-let (doc (plist-get task :task-doc))
                      (propertize (format "\t\t%s" doc)
-                                 'font-lock-face 'fabb-status-task-doc)))
+                                 'font-lock-face 'fabb-colors-task-doc)))
          (buffer-line
           (when task-buffer
             (let ((name (buffer-name task-buffer)))
@@ -484,11 +445,10 @@ Propertizes the color based on task's status."
                               (format "%s" k-v) 'font-lock-face
                               ;; TODO set better colors here
                               (cond
-                               ((s-starts-with-p ":" (format "%s" k-v))
-                                'fabb-status-task-name-error)
-                               ((symbolp k-v)
-                                'fabb-status-task-doc)
-                               (t 'fabb-status-task-name))))
+                               ((s-starts-with-p ":" (format "%s" k-v)) 'fabb-colors-debug-key)
+                               ((symbolp k-v) 'fabb-colors-debug-value)
+                               ((stringp k-v) 'fabb-colors-debug-value)
+                               (t 'fabb-colors-debug-value))))
                            task))))
          (last-cmd (when-let ((cmd (plist-get task :last-cmd)))
                      (format "\t\t%s"
@@ -519,11 +479,11 @@ Propertizes the color based on task's status."
         (task-name (plist-get task :task-name)))
    (fabb-status--task-lines task)
 
-   ;; (format "\t%s" (propertize (format "%s" task-name) 'font-lock-face 'fabb-status-task-label))
+   ;; (format "\t%s" (propertize (format "%s" task-name) 'font-lock-face 'fabb-colors-task-label))
    )
 
- (format "\t%s" (propertize "str" 'font-lock-face 'fabb-status-task-label))
- (concat "\t" (propertize "str" 'font-lock-face 'fabb-status-task-label))
+ (format "\t%s" (propertize "str" 'font-lock-face 'fabb-colors-task-label))
+ (concat "\t" (propertize "str" 'font-lock-face 'fabb-colors-task-label))
 
  (append
   (list "4")
