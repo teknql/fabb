@@ -143,6 +143,26 @@ determining the bb.edn."
  (fabb-task-defs)
  (fabb-task-defs "~/russmatney/clawe/src/user.clj"))
 
+;;; fabb text-color helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun fabb--debug-task-line (task)
+  "Return a line of text with colorized TASK data.
+
+Probably works on any list."
+  (s-join " "
+          (cl-map 'list
+                  (lambda (k-v)
+                    (propertize
+                     (format "%s" k-v) 'font-lock-face
+                     ;; TODO set better colors here
+                     (cond
+                      ((s-starts-with-p ":" (format "%s" k-v)) 'fabb-colors-debug-key)
+                      ((symbolp k-v) 'fabb-colors-debug-value)
+                      ((stringp k-v) 'fabb-colors-debug-value)
+                      (t 'fabb-colors-debug-value))))
+                  task)))
+
+
 ;;; invoking tasks ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun fabb-task--buffer-name (task-def)
@@ -213,7 +233,7 @@ Invoking a task sets a local var: `fabb--context-task-def'."
         (setq-local fabb--context-task-def task-def)
         (message (format "%s" fabb--context-task-def))
         (setq buffer-read-only nil)
-        (insert (format "%s" fabb--context-task-def))
+        (insert (fabb--debug-task-line fabb--context-task-def))
         (setq buffer-read-only t)))
     (fabb-status-refresh)))
 
@@ -434,22 +454,8 @@ Propertizes the color based on task's status."
                       (fabb--buffer-name-face name)))))
          (last-run-at (when-let ((at (plist-get task :last-run-at)))
                         (format "\t\t%s: %s" (fabb--detail-key-face "Last Run") at)))
-         (raw-task-line (format "\t\t%s" task))
          (debug-task-line
-          (s-concat
-           "\t\t"
-           (s-join " "
-                   (cl-map 'list
-                           (lambda (k-v)
-                             (propertize
-                              (format "%s" k-v) 'font-lock-face
-                              ;; TODO set better colors here
-                              (cond
-                               ((s-starts-with-p ":" (format "%s" k-v)) 'fabb-colors-debug-key)
-                               ((symbolp k-v) 'fabb-colors-debug-value)
-                               ((stringp k-v) 'fabb-colors-debug-value)
-                               (t 'fabb-colors-debug-value))))
-                           task))))
+          (s-concat "\t\t" (fabb--debug-task-line task)))
          (last-cmd (when-let ((cmd (plist-get task :last-cmd)))
                      (format "\t\t%s"
                              ;; for now last-cmd includes the `bb'... maybe
@@ -459,7 +465,6 @@ Propertizes the color based on task's status."
     (thread-last
       (append
        (list task-line)
-       ;; (when raw-task-line (list raw-task-line))
        (when debug-task-line (list debug-task-line))
        (when doc-line (list doc-line))
        (when buffer-line (list buffer-line))
