@@ -39,3 +39,54 @@ Then you can configure fab like:
 Configuring from the doom config fixes some common bindings issues, given that
 many of the bindings get overwritten by doom/evil/etc, and it doesn't seem worth
 adding hacks into fabb to work around that.
+
+* todo
+** [ ] document suggested workflows
+** [ ] handle bindings properly
+* status
+
+Fabb is quite useful in my daily work already! There may be some rough edges,
+but it's quicker to run bb commands than popping open a shell in emacs or
+otherwise.
+
+Currently I configure the bindings in my personal doom config like so:
+
+#+begin_src emacs-lisp
+(map!
+ (:leader :desc "Fabb Status" :nv "f" #'fabb-status))
+
+(map!
+ (:after fabb
+  (:map fabb-mode-map
+   :n "i" #'fabb-invoke-ivy
+   :n "?" #'fabb-dispatch
+   :n "f" #'fabb-dispatch
+   :n "q" #'quit-window)
+
+  (:map fabb-status-mode-map
+   :n "r" #'fabb-status-invoke-task-and-show-buffer
+   :n "R" #'fabb-status-invoke-task-in-background
+   :n "e" #'fabb-status-edit-and-invoke-task
+   :n "RET" #'fabb-status-show-task-buffer
+   :n "x" #'fabb-kill-fabb-buffers
+
+   :n "j" #'fabb-status-goto-next-task
+   :n "k" #'fabb-status-goto-previous-task)
+
+  (:map fabb-task-mode-map
+   :n "i" #'fabb-invoke-ivy
+   :n "?" #'fabb-dispatch
+
+   :n "e" #'fabb-task-edit-and-reinvoke-task
+   :n "r" #'fabb-task-reinvoke-task-prompt
+   :n "R" #'fabb-task-reinvoke-task-no-prompt))
+
+ (:map compilation-mode-map
+  :n "C-k" nil
+  :n "C-j" nil)
+ (:map compilation-minor-mode-map
+  :n "C-k" nil
+  :n "C-j" nil))
+
+(use-package! fabb)
+#+end_src
