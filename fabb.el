@@ -117,7 +117,7 @@ task-defs are property lists with these keys:
                 )))
     (append task-def
             (when doc (list :task-doc doc))
-            ;; TODO symbols from the bb.edn appear to be dropped (run 'doctor-tail)
+            ;; TODO symbols from the bb.edn appear to be dropped e.g. (run 'doctor-tail)
             (list :task-command (if is-table
                                     (gethash :task raw-task)
                                   raw-task)))))
@@ -136,8 +136,14 @@ task-defs are property lists with these keys:
 
 PATH can optionally be used to specify a different starting point for
 determining the bb.edn."
-  (let ((bb-edn-path (fabb--find-file-in-project "bb.edn" path)))
-    (fabb--parse-bb-edn-tasks bb-edn-path)))
+  (let* ((bb-edn-path (fabb--find-file-in-project "bb.edn" path))
+         (tasks (fabb--parse-bb-edn-tasks bb-edn-path)))
+    (cl-remove-if
+     (lambda (task)
+       ;; filter out `:requires', `:init', etc
+       (let ((task-name (plist-get task :task-name)))
+         (s-starts-with? ":" (symbol-name task-name))))
+     tasks)))
 
 (fabb--comment
  (fabb-task-defs)
