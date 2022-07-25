@@ -357,6 +357,8 @@ It defaults to the current buffer's file."
                     (fabb-status--build-context))))
     (fabb-display-buffer buffer)
     (fabb-status-refresh buffer)
+    ;; jump to beginning of the buffer (rather than get dumped at the end)
+    (goto-char (point-min))
     buffer))
 
 
