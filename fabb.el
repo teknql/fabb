@@ -359,6 +359,7 @@ It defaults to the current buffer's file."
     (fabb-status-refresh buffer)
     buffer))
 
+
 (defun fabb-task--existing-buffer-for-task (task &optional task-buffer-name)
   "Return a buffer for the passed TASK, if one exists.
 
@@ -375,8 +376,12 @@ have a contextual task."
   (interactive)
   (let* ((props (fabb-status--get-text-props))
          (task (plist-get props :task)))
-    ;; invoke the task
-    (fabb-invoke-task task 'in-background)))
+    ;; TODO return to the same task, not the same line
+    (let ((pt (point)))
+      ;; invoke the task
+      (fabb-invoke-task task 'in-background)
+      ;; return to that point (save-excursion doesn't seem to work?)
+      (goto-char pt))))
 
 ;;;###autoload
 (defun fabb-status-invoke-task-and-show-buffer ()
