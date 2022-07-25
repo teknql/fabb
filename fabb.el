@@ -516,7 +516,7 @@ Propertizes the color based on task's status."
                 (let ((a-at (plist-get task-a :last-run-at))
                       (b-at (plist-get task-b :last-run-at)))
                   (cond
-                   ((and a-at b-at) (> a-at b-at))
+                   ((and a-at b-at) (string> a-at b-at))
                    (a-at t)
                    (b-at nil))))))
 
