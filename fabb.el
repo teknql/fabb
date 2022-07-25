@@ -370,18 +370,73 @@ have a contextual task."
 
 ;;; fabb-status helpers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun fabb-status--task-prefix ()
+  "The prefix of a task in the fabb-status buffer.
+
+Used to match when moving the point around the status buffer."
+  "\tbb ")
+
+(defun fabb-status-goto-task (task)
+  "Move point to the provided TASK in the fabb-status buffer.
+
+Assumes it is already in the fabb-status buffer.
+Maybe it could open it if it wasn't?"
+  (let* ((task-name (plist-get task :task-name))
+         (search-str (s-concat "^" (fabb-status--task-prefix) (symbol-name task-name))))
+    ;; first go to the top of the buffer
+    (goto-char (point-min))
+    ;; search forward to the task-name
+    (let ((ct (re-search-forward search-str nil t)))
+      (when ct
+        ;; return to beginning of this line if we found one
+        (beginning-of-line)))))
+
+(fabb--comment
+ (re-search-forward "task"))
+
+;;;###autoload
+(defun fabb-status-goto-next-task ()
+  "Move to the next task.
+
+A basic regex on `\tbb ' right now."
+  (interactive)
+  (let* ((search-str (s-concat "^" (fabb-status--task-prefix))))
+    ;; TODO silence search-failed logs
+    ;; TODO un-move forward if one wasn't found
+    ;; move forward so we jump to the next one (rather than finding the current)
+    (forward-word)
+    ;; search forward to the task-name
+    (let ((ct (re-search-forward search-str)))
+      (when ct
+        ;; return to beginning of this line if we found one
+        (beginning-of-line)))))
+
+;;;###autoload
+(defun fabb-status-goto-previous-task ()
+  "Move to the previous task.
+
+A basic regex on `\tbb ' right now."
+  (interactive)
+  (let* ((search-str (s-concat "^" (fabb-status--task-prefix))))
+    ;; TODO silence search-failed logs
+    ;; search backward to the last task-name
+    (let ((ct (re-search-backward search-str)))
+      (when ct
+        ;; return to beginning of this line if we found one
+        (beginning-of-line)))))
+
+;;; fabb-status commands ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;###autoload
 (defun fabb-status-invoke-task-in-background ()
   "Select the task or buffer at point."
   (interactive)
   (let* ((props (fabb-status--get-text-props))
          (task (plist-get props :task)))
-    ;; TODO return to the same task, not the same line
-    (let ((pt (point)))
-      ;; invoke the task
-      (fabb-invoke-task task 'in-background)
-      ;; return to that point (save-excursion doesn't seem to work?)
-      (goto-char pt))))
+    ;; invoke the task
+    (fabb-invoke-task task 'in-background)
+    ;; return to the task in the status buffer (after it is refreshed/redrawn)
+    (fabb-status-goto-task task)))
 
 ;;;###autoload
 (defun fabb-status-invoke-task-and-show-buffer ()
