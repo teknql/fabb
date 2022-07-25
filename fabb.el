@@ -495,6 +495,16 @@ Propertizes the color based on task's status."
   (when t (list "5"))
   (when t (list "6"))))
 
+(defun fabb-status--sort-tasks (tasks)
+  "Sort the passed list of TASKS by :last-run-at."
+  (sort tasks (lambda (task-a task-b)
+                (let ((a-at (plist-get task-a :last-run-at))
+                      (b-at (plist-get task-b :last-run-at)))
+                  (cond
+                   ((and a-at b-at) (> a-at b-at))
+                   (a-at t)
+                   (b-at nil))))))
+
 ;;;###autoload
 (defun fabb-status-refresh (&optional buffer path)
   "Redraw the fabb-status buffer.
@@ -514,6 +524,7 @@ PATH, then check if the current buffer is a *fabb-status* one."
                    (mapc (lambda (line) (insert line))))
       (insert ?\n)
       (thread-last (plist-get fabb-status--context :tasks)
+                   fabb-status--sort-tasks
                    (mapc
                     (lambda (task)
                       (mapc (lambda (l)
