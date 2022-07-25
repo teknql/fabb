@@ -162,6 +162,10 @@ Probably works on any list."
                       (t 'fabb-colors-debug-value))))
                   task)))
 
+(defun fabb--task-command-line (task)
+  "Return a line of text with the TASK command definition."
+  (fabb--debug-task-line (list :task-command (plist-get task :task-command))))
+
 
 ;;; invoking tasks ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -454,6 +458,8 @@ Propertizes the color based on task's status."
                       (fabb--buffer-name-face name)))))
          (last-run-at (when-let ((at (plist-get task :last-run-at)))
                         (format "\t\t%s: %s" (fabb--detail-key-face "Last Run") at)))
+         (task-cmd-line
+          (s-concat "\t\t" (fabb--task-command-line task)))
          (debug-task-line
           (s-concat "\t\t" (fabb--debug-task-line task)))
          (last-cmd (when-let ((cmd (plist-get task :last-cmd)))
@@ -465,7 +471,10 @@ Propertizes the color based on task's status."
     (thread-last
       (append
        (list task-line)
-       (when debug-task-line (list debug-task-line))
+       (when (and nil debug-task-line)
+         ;; TODO support debug-toggle
+         (list debug-task-line))
+       (when task-cmd-line (list task-cmd-line))
        (when doc-line (list doc-line))
        (when buffer-line (list buffer-line))
        (when last-run-at (list last-run-at))
