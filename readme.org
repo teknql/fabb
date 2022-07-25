@@ -43,6 +43,22 @@ adding hacks into fabb to work around that.
 * todo
 ** [ ] document suggested workflows
 ** [ ] handle bindings properly
+** [ ] document/handle dependencies
+Things may only work due to implicit deps in my config right now
+
+The linter led me to require these:
+
+#+begin_src emacs-lisp
+(require 's)
+(require 'parseedn)
+(require 'compile)
+(require 'ivy)
+(require 'evil)
+(require 'cl-lib)
+#+end_src
+
+Not all of these are strictly necessary
+** [ ] don't run ivy for non-ivy users
 * status
 
 Fabb is quite useful in my daily work already! There may be some rough edges,
