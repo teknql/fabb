@@ -29,6 +29,7 @@
 (require 'ivy)
 (require 'evil)
 (require 'cl-lib)
+(require 'projectile)
 
 (require 'fabb-colors)
 
@@ -275,22 +276,45 @@ Invoking a task sets a local var: `fabb--context-task-def'."
       (fabb-invoke-task fabb--context-task-def 'same-window)
     (message "no context task :(")))
 
-(defun fabb-edit-and-reinvoke-task (task)
+(defun fabb-get-project-file-path (&optional prefix)
+  "Return a path to a file in the current projectile-root.
+TODO rewrite without projectile
+- completing read with project paths should be simple"
+  (let ((prefix (or prefix "Find file: ")))
+    (projectile-completing-read prefix (projectile-project-files (projectile-acquire-root)))))
+
+(defun fabb-edit-and-reinvoke-task (task &optional complete-path)
   "Edit the cmd and invoke the passed TASK."
   (interactive)
-  ;; TODO store command history, use fancier read-string method
-  (let* ((last-cmd
-          (or
-           (plist-get task :last-cmd)
-           (fabb-task--command task)))
-         (cmd (read-string "$ " last-cmd)))
+  ;; TODO store and serve command history (per task)
+  (let* ((cmd-prefix (fabb-task--command task))
+         (last-cmd (plist-get task :last-cmd))
+         (cmd
+          (if complete-path
+              ;; return `prefix <file-path>'
+              (concat cmd-prefix " " (fabb-get-project-file-path cmd-prefix))
+            ;; return whatever the user writes in the full prompt
+            (read-string "$ " (concat (or last-cmd cmd-prefix) " ")))))
     (fabb-invoke-task task 'same-window cmd)))
+
+(fabb--comment
+ (fabb-task-defs)
+ (fabb-edit-and-reinvoke-task
+  (car
+   (fabb-task-defs "~/russmatney/dino"))
+  t))
 
 ;;;###autoload
 (defun fabb-task-edit-and-reinvoke-task ()
   "Edit the task in the current buffer and reinvoke it."
   (interactive)
   (fabb-edit-and-reinvoke-task fabb--context-task-def))
+
+;;;###autoload
+(defun fabb-task-edit-and-reinvoke-task-with-path ()
+  "Edit the task in the current buffer and reinvoke it."
+  (interactive)
+  (fabb-edit-and-reinvoke-task fabb--context-task-def t))
 
 ;;; fabb-status ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
