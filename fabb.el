@@ -9,7 +9,7 @@
 ;; Homepage: https://github.com/teknql/fabb
 
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "28.1"))
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -52,8 +52,6 @@
   "Disable line numbers in current buffer.
 
 Pulled from (magit-section-mode) definition."
-  (when (bound-and-true-p global-linum-mode)
-    (linum-mode -1))
   (when (and (fboundp 'nlinum-mode)
              (bound-and-true-p global-nlinum-mode))
     (nlinum-mode -1))
@@ -195,12 +193,12 @@ Probably works on any list."
   (substring (current-time-string) 0 19))
 
 (defun fabb-invoke-task (task-def &optional window-opt cmd-overwrite)
-  "Invoke the passed TASK-DEF via 'bb <task-name>'.
+  "Invoke the passed TASK-DEF via bb <task-name>.
 
-Accepts an optional WINDOW-OPT that can be 'same-window or 'in-background.
+Accepts an optional WINDOW-OPT that can be \='same-window or \='in-background.
 
-'same-window invokes the task and opens the task buffer in the same window.
-'in-background invokes the task in the background, suppressing any popup.
+\='same-window invokes the task and opens the task buffer in the same window.
+\='in-background invokes the task in the background, suppressing any popup.
 
 The command is set initially via `fabb-task--command',
 but if :last-cmd is found on the task, that will be used.
