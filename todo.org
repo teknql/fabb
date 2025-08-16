@@ -1,0 +1,35 @@
+#+title: Fabb
+
+* todo
+** [ ] `q` in process buffers should return to the fabb buffer
+don't kill the process buffer
+just return and move cursor to the current buffer's task/cursor/index/line number
+** [ ] document suggested workflows
+** [ ] handle bindings 'properly'
+emacs modes and keybindings are layered and complicated
+** [ ] document/handle dependencies
+Things may only work due to implicit deps in my config right now
+
+The linter led me to require these:
+
+#+begin_src emacs-lisp
+(require 's)
+(require 'parseedn)
+(require 'compile)
+(require 'ivy)
+(require 'evil)
+(require 'cl-lib)
+#+end_src
+
+Not all of these are strictly necessary
+** [ ] don't run ivy for non-ivy users
+* sparks
+** spark: fabb-narrow vs fabb-widen
+enter to go into a task buffer
+q to return to the all-tasks buffer
+
+ideally we show output from running tasks, or open task buffers in splits along
+the way
+
+fabb narrow is sort of a fabb-focus
+fabb widen is a return to the overview
